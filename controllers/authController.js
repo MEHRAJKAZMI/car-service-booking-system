@@ -76,5 +76,22 @@ res.status(200).json({
     res.status(500).json({ message: error.message });
   }
 };
+// Get the logged-in user's profile
+// This route is protected - it only runs AFTER our "protect" middleware confirms the token is valid
+const getProfile = async (req, res) => {
+  try {
+    // req.user was attached by our middleware (contains userId and role from the token)
+    // We use userId to fetch the full, current user data from the database
+    const user = await User.findById(req.user.userId).select('-password');
 
-module.exports = { register, login };
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json({ user });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+module.exports = { register, login, getProfile };
