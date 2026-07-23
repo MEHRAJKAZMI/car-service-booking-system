@@ -93,5 +93,38 @@ const getProfile = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+
 };
-module.exports = { register, login, getProfile };
+
+// Update the logged-in user's profile
+// Protected route - req.user is available because "protect" middleware ran first
+const updateProfile = async (req, res) => {
+  try {
+    // Only allow these specific fields to be updated
+    // We deliberately do NOT allow email, password, or role to be changed here
+    // (email changes need extra verification, password has its own dedicated route,
+    // and role changes should only be done by an authorized admin, not by the user themselves)
+    const { firstName, lastName, phoneNumber } = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.userId,
+      { firstName, lastName, phoneNumber },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json({
+      message: 'Profile updated successfully',
+      user: updatedUser
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
+module.exports = { register, login, getProfile, updateProfile };
