@@ -125,6 +125,16 @@ const updateProfile = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+// Logout - since JWTs are stateless, the server doesn't track sessions
+// "Logging out" simply means the client deletes/stops sending the token
+// This endpoint exists mainly for a consistent API contract and to confirm the action
+const logout = async (req, res) => {
+  try {
+    res.status(200).json({ message: 'Logout successful' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 
-module.exports = { register, login, getProfile, updateProfile };
+module.exports = { register, login, getProfile, updateProfile, logout };
