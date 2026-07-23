@@ -175,7 +175,37 @@ const updateProfile = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+// Change password - protected route, requires current password to confirm identity
+// Even though the user is already authenticated via token, changing password
+// requires re-proving identity since it's a highly sensitive action
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
 
+    // Fetch the full user document (we need the password field to compare)
+    const user = await User.findById(req.user.userId);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Verify the current password matches what's stored
+    const isMatch = await user.comparePassword(currentPassword);
+
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+
+    // Set the new password - our pre('save') hook will automatically hash it
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json({ message: 'Password changed successfully' });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 // Logout - since JWTs are stateless, the server doesn't track sessions
 // "Logging out" simply means the client deletes/stops sending the token
 const logout = async (req, res) => {
@@ -186,4 +216,5 @@ const logout = async (req, res) => {
   }
 };
 
-module.exports = { register, login, refreshAccessToken, getProfile, updateProfile, logout };
+
+module.exports = { register, login, refreshAccessToken, getProfile, updateProfile, changePassword, logout };
