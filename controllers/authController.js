@@ -178,25 +178,23 @@ const updateProfile = async (req, res) => {
 // Change password - protected route, requires current password to confirm identity
 // Even though the user is already authenticated via token, changing password
 // requires re-proving identity since it's a highly sensitive action
+// Change password - protected route, requires current password to confirm identity
 const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
-    // Fetch the full user document (we need the password field to compare)
     const user = await User.findById(req.user.userId);
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Verify the current password matches what's stored
     const isMatch = await user.comparePassword(currentPassword);
 
     if (!isMatch) {
       return res.status(401).json({ message: 'Current password is incorrect' });
     }
 
-    // Set the new password - our pre('save') hook will automatically hash it
     user.password = newPassword;
     await user.save();
 
@@ -204,6 +202,107 @@ const changePassword = async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// Step 1 of password reset flow: generate and "send" an OTP
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(200).json({ message: 'If this email is registered, an OTP has been sent' });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
+    user.otp = otp;
+    user.otpExpiry = otpExpiry;
+    await user.save();
+
+    res.status(200).json({
+      message: 'OTP generated successfully (for development only - would normally be emailed)',
+      otp
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+// Step 2 of password reset flow: verify the OTP and issue a short-lived reset token
+const verifyOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid email or OTP' });
+    }
+
+    // Check the OTP matches AND hasn't expired
+    if (user.otp !== otp || user.otpExpiry < new Date()) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
+
+    // OTP is correct - clear it immediately so it can't be reused
+    user.otp = null;
+    user.otpExpiry = null;
+    await user.save();
+
+    // Issue a short-lived reset token - this is what Reset Password will require
+    // Using a dedicated purpose field ("passwordReset") so this token can't be
+    // mistaken for or misused as a regular access token
+    const resetToken = jwt.sign(
+      { userId: user._id, purpose: 'passwordReset' },
+      process.env.JWT_SECRET,
+      { expiresIn: '10m' }
+    );
+
+    res.status(200).json({
+      message: 'OTP verified successfully',
+      resetToken
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+// Step 3 of password reset flow: set the new password using the reset token
+const resetPassword = async (req, res) => {
+  try {
+    const { resetToken, newPassword } = req.body;
+
+    if (!resetToken) {
+      return res.status(400).json({ message: 'Reset token is required' });
+    }
+
+    // Verify the reset token using the same JWT_SECRET (it's still a normal JWT, just with a special "purpose")
+    const decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
+
+    // Crucial check: make sure this token was actually issued for password reset,
+    // not some other kind of token that happens to be signed with the same secret
+    if (decoded.purpose !== 'passwordReset') {
+      return res.status(401).json({ message: 'Invalid reset token' });
+    }
+
+    const user = await User.findById(decoded.userId);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Set the new password - pre('save') hook hashes it automatically
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json({ message: 'Password reset successfully' });
+
+  } catch (error) {
+    res.status(401).json({ message: 'Invalid or expired reset token' });
   }
 };
 // Logout - since JWTs are stateless, the server doesn't track sessions
@@ -217,4 +316,4 @@ const logout = async (req, res) => {
 };
 
 
-module.exports = { register, login, refreshAccessToken, getProfile, updateProfile, changePassword, logout };
+module.exports = { register, login, refreshAccessToken, getProfile, updateProfile, changePassword, forgotPassword, verifyOtp, resetPassword, logout };

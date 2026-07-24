@@ -41,7 +41,15 @@ const userSchema = new mongoose.Schema({
   refreshToken: {
     type: String,
     default: null
-  }
+  },
+  otp: {
+  type: String,
+  default: null
+},
+otpExpiry: {
+  type: Date,
+  default: null
+}
 }, {
   timestamps: true
 });
