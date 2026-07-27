@@ -11,10 +11,10 @@ const {
 } = require('../controllers/userController');
 const { protect } = require('../middlewares/authMiddleware');
 const { authorize } = require('../middlewares/authorizeMiddleware');
+const validateRequest = require('../middlewares/validateRequest');
+const { createUserValidation } = require('../utils/validators');
 
-// All routes require login (protect) + the "User Management" permission (authorize)
-// A role with the "ALL" permission automatically passes every check
-router.post('/', protect, authorize('User Management'), createUser);
+router.post('/', protect, authorize('User Management'), createUserValidation, validateRequest, createUser);
 router.get('/', protect, authorize('User Management'), getAllUsers);
 router.get('/:id', protect, authorize('User Management'), getUserDetails);
 router.put('/:id', protect, authorize('User Management'), updateUser);

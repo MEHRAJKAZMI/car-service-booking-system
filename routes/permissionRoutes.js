@@ -9,8 +9,10 @@ const {
 } = require('../controllers/permissionController');
 const { protect } = require('../middlewares/authMiddleware');
 const { authorize } = require('../middlewares/authorizeMiddleware');
+const validateRequest = require('../middlewares/validateRequest');
+const { createPermissionValidation } = require('../utils/validators');
 
-router.post('/', protect, authorize('Permission Management'), createPermission);
+router.post('/', protect, authorize('Permission Management'), createPermissionValidation, validateRequest, createPermission);
 router.get('/', protect, authorize('Permission Management'), getPermissions);
 router.get('/:id', protect, authorize('Permission Management'), getPermissionDetails);
 router.put('/:id', protect, authorize('Permission Management'), updatePermission);

@@ -10,9 +10,10 @@ const {
 } = require('../controllers/roleController');
 const { protect } = require('../middlewares/authMiddleware');
 const { authorize } = require('../middlewares/authorizeMiddleware');
+const validateRequest = require('../middlewares/validateRequest');
+const { createRoleValidation } = require('../utils/validators');
 
-// Every route: protect (must be logged in) -> authorize (must have the right permission)
-router.post('/', protect, authorize('Role Management'), createRole);
+router.post('/', protect, authorize('Role Management'), createRoleValidation, validateRequest, createRole);
 router.get('/', protect, authorize('Role Management'), getRoles);
 router.get('/:id', protect, authorize('Role Management'), getRoleDetails);
 router.put('/:id', protect, authorize('Role Management'), updateRole);

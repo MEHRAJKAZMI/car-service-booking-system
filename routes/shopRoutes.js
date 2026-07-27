@@ -13,13 +13,11 @@ const {
 const { protect } = require('../middlewares/authMiddleware');
 const { authorize } = require('../middlewares/authorizeMiddleware');
 const upload = require('../middlewares/uploadMiddleware');
+const validateRequest = require('../middlewares/validateRequest');
+const { registerShopValidation } = require('../utils/validators');
 
-// Register Shop - any logged-in user can register (Shop Owner for themselves),
-// OR an Admin with "Shop Management" permission can also register on someone's behalf.
-// We only require "protect" (logged in) here, not "authorize", since the task says
-// a Shop Owner (a regular user) should be able to register their own shop freely.
-//
-// upload.fields([...]) tells Multer to expect these 3 specific file fields
+// Note: validation runs AFTER multer (upload.fields) because express-validator
+// needs req.body to be parsed first, which multer handles for multipart/form-data
 router.post(
   '/',
   protect,
@@ -28,10 +26,11 @@ router.post(
     { name: 'shopLogo', maxCount: 1 },
     { name: 'businessRegistrationCertificate', maxCount: 1 }
   ]),
+  registerShopValidation,
+  validateRequest,
   registerShop
 );
 
-// The rest of the shop management actions require the "Shop Management" permission
 router.get('/', protect, authorize('Shop Management'), getAllShops);
 router.get('/:id', protect, authorize('Shop Management'), getShopDetails);
 router.put('/:id', protect, authorize('Shop Management'), updateShop);

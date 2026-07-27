@@ -13,9 +13,11 @@ const {
   logout
 } = require('../controllers/authController');
 const { protect } = require('../middlewares/authMiddleware');
+const validateRequest = require('../middlewares/validateRequest');
+const { registerValidation, loginValidation } = require('../utils/validators');
 
-router.post('/register', register);
-router.post('/login', login);
+router.post('/register', registerValidation, validateRequest, register);
+router.post('/login', loginValidation, validateRequest, login);
 router.post('/refresh-token', refreshAccessToken);
 router.get('/profile', protect, getProfile);
 router.put('/profile', protect, updateProfile);
