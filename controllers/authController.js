@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const { sendSuccess, sendError } = require('../utils/apiResponse');
 
 const register = async (req, res) => {
   try {
@@ -8,7 +9,7 @@ const register = async (req, res) => {
     const existingUser = await User.findOne({ email });
 
     if (existingUser) {
-      return res.status(400).json({ message: 'Email is already registered' });
+      return sendError(res, 400, 'Email is already registered');
     }
 
     const newUser = await User.create({
@@ -20,8 +21,7 @@ const register = async (req, res) => {
       role
     });
 
-    res.status(201).json({
-      message: 'User registered successfully',
+    return sendSuccess(res, 201, 'User registered successfully', {
       user: {
         id: newUser._id,
         firstName: newUser.firstName,
@@ -33,7 +33,7 @@ const register = async (req, res) => {
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
@@ -44,13 +44,13 @@ const login = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return sendError(res, 401, 'Invalid email or password');
     }
 
     const isMatch = await user.comparePassword(password);
 
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return sendError(res, 401, 'Invalid email or password');
     }
 
     const accessToken = jwt.sign(
@@ -68,8 +68,7 @@ const login = async (req, res) => {
     user.refreshToken = refreshToken;
     await user.save();
 
-    res.status(200).json({
-      message: 'Login successful',
+    return sendSuccess(res, 200, 'Login successful', {
       accessToken,
       refreshToken,
       user: {
@@ -83,7 +82,7 @@ const login = async (req, res) => {
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
@@ -92,7 +91,7 @@ const refreshAccessToken = async (req, res) => {
     const { refreshToken } = req.body;
 
     if (!refreshToken) {
-      return res.status(401).json({ message: 'Refresh token is required' });
+      return sendError(res, 401, 'Refresh token is required');
     }
 
     const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
@@ -100,7 +99,7 @@ const refreshAccessToken = async (req, res) => {
     const user = await User.findById(decoded.userId);
 
     if (!user || user.refreshToken !== refreshToken) {
-      return res.status(401).json({ message: 'Invalid refresh token' });
+      return sendError(res, 401, 'Invalid refresh token');
     }
 
     const newAccessToken = jwt.sign(
@@ -109,28 +108,27 @@ const refreshAccessToken = async (req, res) => {
       { expiresIn: '15m' }
     );
 
-    res.status(200).json({
-      message: 'Access token refreshed successfully',
+    return sendSuccess(res, 200, 'Access token refreshed successfully', {
       accessToken: newAccessToken
     });
 
   } catch (error) {
-    res.status(401).json({ message: 'Invalid or expired refresh token' });
+    return sendError(res, 401, 'Invalid or expired refresh token');
   }
 };
 
 const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('-password -refreshToken -otp -otpExpiry');
+    const user = await User.findById(req.user.userId).select('-password');
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return sendError(res, 404, 'User not found');
     }
 
-    res.status(200).json({ user });
+    return sendSuccess(res, 200, 'Profile fetched successfully', { user });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
@@ -142,19 +140,16 @@ const updateProfile = async (req, res) => {
       req.user.userId,
       { firstName, lastName, phoneNumber },
       { new: true, runValidators: true }
-    ).select('-password -refreshToken -otp -otpExpiry');
+    ).select('-password');
 
     if (!updatedUser) {
-      return res.status(404).json({ message: 'User not found' });
+      return sendError(res, 404, 'User not found');
     }
 
-    res.status(200).json({
-      message: 'Profile updated successfully',
-      user: updatedUser
-    });
+    return sendSuccess(res, 200, 'Profile updated successfully', { user: updatedUser });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
@@ -165,22 +160,22 @@ const changePassword = async (req, res) => {
     const user = await User.findById(req.user.userId);
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return sendError(res, 404, 'User not found');
     }
 
     const isMatch = await user.comparePassword(currentPassword);
 
     if (!isMatch) {
-      return res.status(401).json({ message: 'Current password is incorrect' });
+      return sendError(res, 401, 'Current password is incorrect');
     }
 
     user.password = newPassword;
     await user.save();
 
-    res.status(200).json({ message: 'Password changed successfully' });
+    return sendSuccess(res, 200, 'Password changed successfully');
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
@@ -191,7 +186,7 @@ const forgotPassword = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(200).json({ message: 'If this email is registered, an OTP has been sent' });
+      return sendSuccess(res, 200, 'If this email is registered, an OTP has been sent');
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -201,13 +196,10 @@ const forgotPassword = async (req, res) => {
     user.otpExpiry = otpExpiry;
     await user.save();
 
-    res.status(200).json({
-      message: 'OTP generated successfully (for development only - would normally be emailed)',
-      otp
-    });
+    return sendSuccess(res, 200, 'OTP generated successfully (for development only - would normally be emailed)', { otp });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
@@ -218,11 +210,11 @@ const verifyOtp = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(400).json({ message: 'Invalid email or OTP' });
+      return sendError(res, 400, 'Invalid email or OTP');
     }
 
     if (user.otp !== otp || user.otpExpiry < new Date()) {
-      return res.status(400).json({ message: 'Invalid or expired OTP' });
+      return sendError(res, 400, 'Invalid or expired OTP');
     }
 
     user.otp = null;
@@ -235,13 +227,10 @@ const verifyOtp = async (req, res) => {
       { expiresIn: '10m' }
     );
 
-    res.status(200).json({
-      message: 'OTP verified successfully',
-      resetToken
-    });
+    return sendSuccess(res, 200, 'OTP verified successfully', { resetToken });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
@@ -250,37 +239,48 @@ const resetPassword = async (req, res) => {
     const { resetToken, newPassword } = req.body;
 
     if (!resetToken) {
-      return res.status(400).json({ message: 'Reset token is required' });
+      return sendError(res, 400, 'Reset token is required');
     }
 
     const decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
 
     if (decoded.purpose !== 'passwordReset') {
-      return res.status(401).json({ message: 'Invalid reset token' });
+      return sendError(res, 401, 'Invalid reset token');
     }
 
     const user = await User.findById(decoded.userId);
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return sendError(res, 404, 'User not found');
     }
 
     user.password = newPassword;
     await user.save();
 
-    res.status(200).json({ message: 'Password reset successfully' });
+    return sendSuccess(res, 200, 'Password reset successfully');
 
   } catch (error) {
-    res.status(401).json({ message: 'Invalid or expired reset token' });
+    return sendError(res, 401, 'Invalid or expired reset token');
   }
 };
 
 const logout = async (req, res) => {
   try {
-    res.status(200).json({ message: 'Logout successful' });
+    return sendSuccess(res, 200, 'Logout successful');
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
-module.exports = { register, login, refreshAccessToken, getProfile, updateProfile, changePassword, forgotPassword, verifyOtp, resetPassword, logout };
+module.exports = {
+  register,
+  login,
+  refreshAccessToken,
+  getProfile,
+  updateProfile,
+  changePassword,
+  forgotPassword,
+  verifyOtp,
+  resetPassword,
+  logout
+};

@@ -1,14 +1,13 @@
 const User = require('../models/User');
+const { sendSuccess, sendError } = require('../utils/apiResponse');
 
-// Create a new user (admin creating a user, e.g. staff member)
-// Similar to Register, but done by an authorized admin instead of self-signup
 const createUser = async (req, res) => {
   try {
     const { firstName, lastName, email, phoneNumber, password, role, status } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: 'Email is already registered' });
+      return sendError(res, 400, 'Email is already registered');
     }
 
     const user = await User.create({
@@ -21,8 +20,7 @@ const createUser = async (req, res) => {
       status
     });
 
-    res.status(201).json({
-      message: 'User created successfully',
+    return sendSuccess(res, 201, 'User created successfully', {
       user: {
         id: user._id,
         firstName: user.firstName,
@@ -35,40 +33,36 @@ const createUser = async (req, res) => {
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
-// Get all users
 const getAllUsers = async (req, res) => {
   try {
-    // populate('role') replaces the role ObjectId with the full Role document
-    const users = await User.find().select('-password -refreshToken -otp -otpExpiry').populate('role');
+    const users = await User.find().select('-password').populate('role');
 
-    res.status(200).json({ users });
+    return sendSuccess(res, 200, 'Users fetched successfully', { users });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
-// Get a single user's details
 const getUserDetails = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password -refreshToken -otp -otpExpiry').populate('role');
+    const user = await User.findById(req.params.id).select('-password').populate('role');
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return sendError(res, 404, 'User not found');
     }
 
-    res.status(200).json({ user });
+    return sendSuccess(res, 200, 'User fetched successfully', { user });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
-// Update a user's details (admin updating another user)
 const updateUser = async (req, res) => {
   try {
     const { firstName, lastName, phoneNumber, role, status } = req.body;
@@ -77,81 +71,69 @@ const updateUser = async (req, res) => {
       req.params.id,
       { firstName, lastName, phoneNumber, role, status },
       { new: true, runValidators: true }
-    ).select('-password -refreshToken -otp -otpExpiry');
+    ).select('-password');
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return sendError(res, 404, 'User not found');
     }
 
-    res.status(200).json({
-      message: 'User updated successfully',
-      user
-    });
+    return sendSuccess(res, 200, 'User updated successfully', { user });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
-// Delete a user
 const deleteUser = async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return sendError(res, 404, 'User not found');
     }
 
-    res.status(200).json({ message: 'User deleted successfully' });
+    return sendSuccess(res, 200, 'User deleted successfully');
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
-// Activate a user (set status to active)
 const activateUser = async (req, res) => {
   try {
     const user = await User.findByIdAndUpdate(
       req.params.id,
       { status: 'active' },
       { new: true }
-    ).select('-password -refreshToken -otp -otpExpiry');
+    ).select('-password');
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return sendError(res, 404, 'User not found');
     }
 
-    res.status(200).json({
-      message: 'User activated successfully',
-      user
-    });
+    return sendSuccess(res, 200, 'User activated successfully', { user });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
-// Deactivate a user (set status to inactive)
 const deactivateUser = async (req, res) => {
   try {
     const user = await User.findByIdAndUpdate(
       req.params.id,
       { status: 'inactive' },
       { new: true }
-    ).select('-password -refreshToken -otp -otpExpiry');
+    ).select('-password');
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return sendError(res, 404, 'User not found');
     }
 
-    res.status(200).json({
-      message: 'User deactivated successfully',
-      user
-    });
+    return sendSuccess(res, 200, 'User deactivated successfully', { user });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 

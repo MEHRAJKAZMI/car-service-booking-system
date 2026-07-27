@@ -1,56 +1,50 @@
 const Permission = require('../models/Permission');
+const { sendSuccess, sendError } = require('../utils/apiResponse');
 
-// Create a new permission
 const createPermission = async (req, res) => {
   try {
     const { name, module, description } = req.body;
 
     const existingPermission = await Permission.findOne({ name });
     if (existingPermission) {
-      return res.status(400).json({ message: 'Permission with this name already exists' });
+      return sendError(res, 400, 'Permission with this name already exists');
     }
 
     const permission = await Permission.create({ name, module, description });
 
-    res.status(201).json({
-      message: 'Permission created successfully',
-      permission
-    });
+    return sendSuccess(res, 201, 'Permission created successfully', { permission });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
-// Get all permissions
 const getPermissions = async (req, res) => {
   try {
     const permissions = await Permission.find();
 
-    res.status(200).json({ permissions });
+    return sendSuccess(res, 200, 'Permissions fetched successfully', { permissions });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
-// Get a single permission by ID
 const getPermissionDetails = async (req, res) => {
   try {
     const permission = await Permission.findById(req.params.id);
 
     if (!permission) {
-      return res.status(404).json({ message: 'Permission not found' });
+      return sendError(res, 404, 'Permission not found');
     }
 
-    res.status(200).json({ permission });
+    return sendSuccess(res, 200, 'Permission fetched successfully', { permission });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
-// Update a permission
 const updatePermission = async (req, res) => {
   try {
     const { name, module, description } = req.body;
@@ -62,32 +56,28 @@ const updatePermission = async (req, res) => {
     );
 
     if (!permission) {
-      return res.status(404).json({ message: 'Permission not found' });
+      return sendError(res, 404, 'Permission not found');
     }
 
-    res.status(200).json({
-      message: 'Permission updated successfully',
-      permission
-    });
+    return sendSuccess(res, 200, 'Permission updated successfully', { permission });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
-// Delete a permission
 const deletePermission = async (req, res) => {
   try {
     const permission = await Permission.findByIdAndDelete(req.params.id);
 
     if (!permission) {
-      return res.status(404).json({ message: 'Permission not found' });
+      return sendError(res, 404, 'Permission not found');
     }
 
-    res.status(200).json({ message: 'Permission deleted successfully' });
+    return sendSuccess(res, 200, 'Permission deleted successfully');
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, 500, error.message);
   }
 };
 
