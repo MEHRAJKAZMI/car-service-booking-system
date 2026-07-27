@@ -43,7 +43,7 @@ const createUser = async (req, res) => {
 const getAllUsers = async (req, res) => {
   try {
     // populate('role') replaces the role ObjectId with the full Role document
-    const users = await User.find().select('-password').populate('role');
+    const users = await User.find().select('-password -refreshToken -otp -otpExpiry').populate('role');
 
     res.status(200).json({ users });
 
@@ -55,7 +55,7 @@ const getAllUsers = async (req, res) => {
 // Get a single user's details
 const getUserDetails = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password').populate('role');
+    const user = await User.findById(req.params.id).select('-password -refreshToken -otp -otpExpiry').populate('role');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -77,7 +77,7 @@ const updateUser = async (req, res) => {
       req.params.id,
       { firstName, lastName, phoneNumber, role, status },
       { new: true, runValidators: true }
-    ).select('-password');
+    ).select('-password -refreshToken -otp -otpExpiry');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -116,7 +116,7 @@ const activateUser = async (req, res) => {
       req.params.id,
       { status: 'active' },
       { new: true }
-    ).select('-password');
+    ).select('-password -refreshToken -otp -otpExpiry');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -139,7 +139,7 @@ const deactivateUser = async (req, res) => {
       req.params.id,
       { status: 'inactive' },
       { new: true }
-    ).select('-password');
+    ).select('-password -refreshToken -otp -otpExpiry');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
