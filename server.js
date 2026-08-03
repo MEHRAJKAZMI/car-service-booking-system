@@ -7,6 +7,7 @@ const permissionRoutes = require('./routes/permissionRoutes');
 const userRoutes = require('./routes/userRoutes');
 const shopRoutes = require('./routes/shopRoutes');
 const vehicleRoutes = require('./routes/vehicleRoutes');
+const serviceRoutes = require('./routes/serviceRoutes');
 const connectDB = require('./config/db');
 const errorHandler = require('./middlewares/errorHandler');
 
@@ -28,6 +29,7 @@ app.use('/api/permissions', permissionRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/shops', shopRoutes);
 app.use('/api/vehicles', vehicleRoutes);
+app.use('/api/services', serviceRoutes);
 
 app.use((req, res, next) => {
   res.status(404).json({ success: false, message: `Route not found: ${req.originalUrl}` });
