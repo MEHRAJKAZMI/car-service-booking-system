@@ -1,5 +1,37 @@
 const mongoose = require('mongoose');
 
+// A single service offered by a shop - embedded directly inside the Shop document,
+// not a separate collection. Each service gets its own auto-generated _id via
+// Mongoose's default subdocument behavior, so we can still reference a specific
+// service later (e.g. when a customer selects services for a booking).
+const shopServiceSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  description: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  price: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  durationMinutes: {
+    type: Number,
+    required: true,
+    min: 1
+  },
+  status: {
+    type: String,
+    enum: ['active', 'inactive'],
+    default: 'active'
+  }
+});
+
 const shopSchema = new mongoose.Schema({
   // Basic Information
   shopName: {
@@ -68,35 +100,35 @@ const shopSchema = new mongoose.Schema({
     default: ''
   },
 
-  // Attachments - we store the file PATH (where Multer saved it), not the file itself
+  // Attachments
   ownerCnic: {
-    type: String, // file path
+    type: String,
     default: null
   },
   shopLogo: {
-    type: String, // file path
+    type: String,
     default: null
   },
   businessRegistrationCertificate: {
-    type: String, // file path, optional
+    type: String,
     default: null
   },
 
-  // Who registered this shop - could be the Shop Owner themself, or an Admin on their behalf
+  // Services this shop offers - embedded array, added directly during registration
+  services: [shopServiceSchema],
+
   registeredBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
 
-  // Shop Status workflow
   status: {
     type: String,
     enum: ['pending', 'under_review', 'approved', 'rejected'],
     default: 'pending'
   },
 
-  // Optional: store a reason if rejected, useful for the shop owner to know why
   rejectionReason: {
     type: String,
     trim: true,

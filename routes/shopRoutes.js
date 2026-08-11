@@ -8,7 +8,10 @@ const {
   deleteShop,
   approveShop,
   rejectShop,
-  changeShopStatus
+  changeShopStatus,
+  addServiceToShop,
+  updateShopService,
+  removeShopService
 } = require('../controllers/shopController');
 const { protect } = require('../middlewares/authMiddleware');
 const { authorize } = require('../middlewares/authorizeMiddleware');
@@ -16,8 +19,6 @@ const upload = require('../middlewares/uploadMiddleware');
 const validateRequest = require('../middlewares/validateRequest');
 const { registerShopValidation } = require('../utils/validators');
 
-// Note: validation runs AFTER multer (upload.fields) because express-validator
-// needs req.body to be parsed first, which multer handles for multipart/form-data
 router.post(
   '/',
   protect,
@@ -38,5 +39,10 @@ router.delete('/:id', protect, authorize('Shop Management'), deleteShop);
 router.put('/:id/approve', protect, authorize('Shop Management'), approveShop);
 router.put('/:id/reject', protect, authorize('Shop Management'), rejectShop);
 router.put('/:id/status', protect, authorize('Shop Management'), changeShopStatus);
+
+// Managing services embedded within a shop
+router.post('/:id/services', protect, authorize('Shop Management'), addServiceToShop);
+router.put('/:id/services/:serviceId', protect, authorize('Shop Management'), updateShopService);
+router.delete('/:id/services/:serviceId', protect, authorize('Shop Management'), removeShopService);
 
 module.exports = router;
