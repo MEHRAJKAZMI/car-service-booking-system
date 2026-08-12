@@ -1,19 +1,16 @@
 const Booking = require('../models/Booking');
 const Shop = require('../models/Shop');
+const createNotification = require('../utils/createNotification');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 
-// Create a booking - the core customer-facing action
 const createBooking = async (req, res) => {
   try {
     const { shop, serviceIds, vehicle, bookingType, address, scheduledAt, notes } = req.body;
 
-    // Conditional validation: roadside bookings MUST have an address
     if (bookingType === 'roadside' && (!address || address.trim() === '')) {
       return sendError(res, 400, 'Address is required for roadside bookings');
     }
 
-    // Fetch the shop so we can validate the selected services actually belong to it,
-    // and snapshot their current name/price into the booking
     const shopDoc = await Shop.findById(shop);
     if (!shopDoc) {
       return sendError(res, 404, 'Shop not found');
@@ -23,7 +20,6 @@ const createBooking = async (req, res) => {
       return sendError(res, 400, 'At least one service must be selected');
     }
 
-    // Build the services array by looking up each selected service inside the shop's embedded list
     const selectedServices = [];
     for (const serviceId of serviceIds) {
       const service = shopDoc.services.id(serviceId);
@@ -48,6 +44,15 @@ const createBooking = async (req, res) => {
       notes
     });
 
+    // Notify the customer that their booking was created
+    await createNotification({
+      recipient: req.user.userId,
+      title: 'Booking Created',
+      message: `Your ${bookingType === 'roadside' ? 'roadside' : 'shop visit'} booking at ${shopDoc.shopName} has been created and is pending confirmation.`,
+      type: 'booking_created',
+      relatedBooking: booking._id
+    });
+
     return sendSuccess(res, 201, 'Booking created successfully', { booking });
 
   } catch (error) {
@@ -55,7 +60,6 @@ const createBooking = async (req, res) => {
   }
 };
 
-// Get all bookings belonging to the logged-in customer
 const getMyBookings = async (req, res) => {
   try {
     const bookings = await Booking.find({ customer: req.user.userId })
@@ -69,7 +73,6 @@ const getMyBookings = async (req, res) => {
   }
 };
 
-// Get ALL bookings across all customers - admin/shop-management view
 const getAllBookings = async (req, res) => {
   try {
     const bookings = await Booking.find()
@@ -84,7 +87,6 @@ const getAllBookings = async (req, res) => {
   }
 };
 
-// Get a single booking's details
 const getBookingDetails = async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id)
@@ -102,7 +104,6 @@ const getBookingDetails = async (req, res) => {
   }
 };
 
-// Update booking status - generic status changer for shop/admin use
 const updateBookingStatus = async (req, res) => {
   try {
     const { status } = req.body;
@@ -122,6 +123,23 @@ const updateBookingStatus = async (req, res) => {
       return sendError(res, 404, 'Booking not found');
     }
 
+    // Notify the customer whenever the shop/admin changes their booking's status
+    const statusMessages = {
+      confirmed: 'Your booking has been confirmed.',
+      in_progress: 'Work has started on your booking.',
+      completed: 'Your booking has been marked as completed.',
+      cancelled: 'Your booking has been cancelled.',
+      pending: 'Your booking status was reset to pending.'
+    };
+
+    await createNotification({
+      recipient: booking.customer,
+      title: 'Booking Status Updated',
+      message: statusMessages[status] || `Your booking status changed to ${status}.`,
+      type: 'booking_status_changed',
+      relatedBooking: booking._id
+    });
+
     return sendSuccess(res, 200, 'Booking status updated successfully', { booking });
 
   } catch (error) {
@@ -129,7 +147,6 @@ const updateBookingStatus = async (req, res) => {
   }
 };
 
-// Cancel a booking - customer-facing action, requires an optional reason
 const cancelBooking = async (req, res) => {
   try {
     const { reason } = req.body;
@@ -143,6 +160,14 @@ const cancelBooking = async (req, res) => {
     if (!booking) {
       return sendError(res, 404, 'Booking not found');
     }
+
+    await createNotification({
+      recipient: booking.customer,
+      title: 'Booking Cancelled',
+      message: `Your booking has been cancelled.${reason ? ' Reason: ' + reason : ''}`,
+      type: 'booking_cancelled',
+      relatedBooking: booking._id
+    });
 
     return sendSuccess(res, 200, 'Booking cancelled successfully', { booking });
 
