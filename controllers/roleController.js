@@ -1,5 +1,6 @@
 const Role = require('../models/Role');
 const Permission = require('../models/Permission');
+const logAction = require('../utils/logAction');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 
 const createRole = async (req, res) => {
@@ -13,6 +14,14 @@ const createRole = async (req, res) => {
 
     const role = await Role.create({ name, description, status });
 
+    await logAction({
+      performedBy: req.user.userId,
+      action: 'ROLE_CREATED',
+      module: 'Roles',
+      targetId: role._id,
+      details: { name: role.name }
+    });
+
     return sendSuccess(res, 201, 'Role created successfully', { role });
 
   } catch (error) {
@@ -23,9 +32,7 @@ const createRole = async (req, res) => {
 const getRoles = async (req, res) => {
   try {
     const roles = await Role.find().populate('permissions');
-
     return sendSuccess(res, 200, 'Roles fetched successfully', { roles });
-
   } catch (error) {
     return sendError(res, 500, error.message);
   }
@@ -34,13 +41,10 @@ const getRoles = async (req, res) => {
 const getRoleDetails = async (req, res) => {
   try {
     const role = await Role.findById(req.params.id).populate('permissions');
-
     if (!role) {
       return sendError(res, 404, 'Role not found');
     }
-
     return sendSuccess(res, 200, 'Role fetched successfully', { role });
-
   } catch (error) {
     return sendError(res, 500, error.message);
   }
@@ -60,6 +64,14 @@ const updateRole = async (req, res) => {
       return sendError(res, 404, 'Role not found');
     }
 
+    await logAction({
+      performedBy: req.user.userId,
+      action: 'ROLE_UPDATED',
+      module: 'Roles',
+      targetId: role._id,
+      details: { name, description, status }
+    });
+
     return sendSuccess(res, 200, 'Role updated successfully', { role });
 
   } catch (error) {
@@ -74,6 +86,14 @@ const deleteRole = async (req, res) => {
     if (!role) {
       return sendError(res, 404, 'Role not found');
     }
+
+    await logAction({
+      performedBy: req.user.userId,
+      action: 'ROLE_DELETED',
+      module: 'Roles',
+      targetId: role._id,
+      details: { name: role.name }
+    });
 
     return sendSuccess(res, 200, 'Role deleted successfully');
 
@@ -105,6 +125,14 @@ const assignPermissionsToRole = async (req, res) => {
     if (!role) {
       return sendError(res, 404, 'Role not found');
     }
+
+    await logAction({
+      performedBy: req.user.userId,
+      action: 'ROLE_PERMISSIONS_ASSIGNED',
+      module: 'Roles',
+      targetId: role._id,
+      details: { permissionIds }
+    });
 
     return sendSuccess(res, 200, 'Permissions assigned to role successfully', { role });
 

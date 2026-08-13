@@ -1,9 +1,7 @@
 const Shop = require('../models/Shop');
+const logAction = require('../utils/logAction');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 
-// Register a new shop - now accepts a "services" array directly in the body.
-// Since this comes through multipart/form-data (because of file uploads),
-// the services array arrives as a JSON STRING and needs to be parsed.
 const registerShop = async (req, res) => {
   try {
     const {
@@ -28,9 +26,6 @@ const registerShop = async (req, res) => {
       ? req.files.businessRegistrationCertificate[0].path
       : null;
 
-    // In form-data, arrays/objects are sent as plain text, so "services" arrives
-    // as a JSON string like '[{"name":"Oil Change","price":2500,...}]' - parse it back into a real array.
-    // If it's already an array (e.g. request sent as raw JSON instead of form-data), use it as-is.
     let parsedServices = [];
     if (services) {
       parsedServices = typeof services === 'string' ? JSON.parse(services) : services;
@@ -66,9 +61,7 @@ const registerShop = async (req, res) => {
 const getAllShops = async (req, res) => {
   try {
     const shops = await Shop.find().populate('registeredBy', 'firstName lastName email');
-
     return sendSuccess(res, 200, 'Shops fetched successfully', { shops });
-
   } catch (error) {
     return sendError(res, 500, error.message);
   }
@@ -77,13 +70,10 @@ const getAllShops = async (req, res) => {
 const getShopDetails = async (req, res) => {
   try {
     const shop = await Shop.findById(req.params.id).populate('registeredBy', 'firstName lastName email');
-
     if (!shop) {
       return sendError(res, 404, 'Shop not found');
     }
-
     return sendSuccess(res, 200, 'Shop fetched successfully', { shop });
-
   } catch (error) {
     return sendError(res, 500, error.message);
   }
@@ -144,6 +134,14 @@ const deleteShop = async (req, res) => {
       return sendError(res, 404, 'Shop not found');
     }
 
+    await logAction({
+      performedBy: req.user.userId,
+      action: 'SHOP_DELETED',
+      module: 'Shops',
+      targetId: shop._id,
+      details: { shopName: shop.shopName }
+    });
+
     return sendSuccess(res, 200, 'Shop deleted successfully');
 
   } catch (error) {
@@ -162,6 +160,14 @@ const approveShop = async (req, res) => {
     if (!shop) {
       return sendError(res, 404, 'Shop not found');
     }
+
+    await logAction({
+      performedBy: req.user.userId,
+      action: 'SHOP_APPROVED',
+      module: 'Shops',
+      targetId: shop._id,
+      details: { shopName: shop.shopName }
+    });
 
     return sendSuccess(res, 200, 'Shop approved successfully', { shop });
 
@@ -183,6 +189,14 @@ const rejectShop = async (req, res) => {
     if (!shop) {
       return sendError(res, 404, 'Shop not found');
     }
+
+    await logAction({
+      performedBy: req.user.userId,
+      action: 'SHOP_REJECTED',
+      module: 'Shops',
+      targetId: shop._id,
+      details: { shopName: shop.shopName, reason }
+    });
 
     return sendSuccess(res, 200, 'Shop rejected successfully', { shop });
 
@@ -217,7 +231,6 @@ const changeShopStatus = async (req, res) => {
   }
 };
 
-// Add a single service to an existing shop
 const addServiceToShop = async (req, res) => {
   try {
     const { name, description, price, durationMinutes, status } = req.body;
@@ -238,7 +251,6 @@ const addServiceToShop = async (req, res) => {
   }
 };
 
-// Update a specific embedded service within a shop
 const updateShopService = async (req, res) => {
   try {
     const { name, description, price, durationMinutes, status } = req.body;
@@ -249,7 +261,6 @@ const updateShopService = async (req, res) => {
       return sendError(res, 404, 'Shop not found');
     }
 
-    // .id() is a Mongoose subdocument helper - finds a subdocument by its _id
     const service = shop.services.id(req.params.serviceId);
 
     if (!service) {
@@ -271,7 +282,6 @@ const updateShopService = async (req, res) => {
   }
 };
 
-// Remove a specific embedded service from a shop
 const removeShopService = async (req, res) => {
   try {
     const shop = await Shop.findById(req.params.id);
@@ -286,7 +296,6 @@ const removeShopService = async (req, res) => {
       return sendError(res, 404, 'Service not found on this shop');
     }
 
-    // .deleteOne() on a subdocument removes it from the parent array
     service.deleteOne();
     await shop.save();
 

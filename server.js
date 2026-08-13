@@ -11,6 +11,7 @@ const reviewRoutes = require('./routes/reviewRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const auditLogRoutes = require('./routes/auditLogRoutes');
 const connectDB = require('./config/db');
 const errorHandler = require('./middlewares/errorHandler');
 
@@ -36,6 +37,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
 
 app.use((req, res, next) => {
   res.status(404).json({ success: false, message: `Route not found: ${req.originalUrl}` });
