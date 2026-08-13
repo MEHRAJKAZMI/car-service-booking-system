@@ -1,6 +1,7 @@
 const Booking = require('../models/Booking');
 const Shop = require('../models/Shop');
 const createNotification = require('../utils/createNotification');
+const { checkAndApplyPenalty, checkAndApplyPenaltyToMany } = require('../utils/checkBookingPenalty');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 
 const createBooking = async (req, res) => {
@@ -44,7 +45,6 @@ const createBooking = async (req, res) => {
       notes
     });
 
-    // Notify the customer that their booking was created
     await createNotification({
       recipient: req.user.userId,
       title: 'Booking Created',
@@ -62,9 +62,11 @@ const createBooking = async (req, res) => {
 
 const getMyBookings = async (req, res) => {
   try {
-    const bookings = await Booking.find({ customer: req.user.userId })
+    let bookings = await Booking.find({ customer: req.user.userId })
       .populate('shop', 'shopName phoneNumber city')
       .sort({ createdAt: -1 });
+
+    bookings = await checkAndApplyPenaltyToMany(bookings);
 
     return sendSuccess(res, 200, 'Bookings fetched successfully', { bookings });
 
@@ -75,10 +77,12 @@ const getMyBookings = async (req, res) => {
 
 const getAllBookings = async (req, res) => {
   try {
-    const bookings = await Booking.find()
+    let bookings = await Booking.find()
       .populate('shop', 'shopName phoneNumber city')
       .populate('customer', 'firstName lastName email phoneNumber')
       .sort({ createdAt: -1 });
+
+    bookings = await checkAndApplyPenaltyToMany(bookings);
 
     return sendSuccess(res, 200, 'Bookings fetched successfully', { bookings });
 
@@ -89,13 +93,15 @@ const getAllBookings = async (req, res) => {
 
 const getBookingDetails = async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id)
+    let booking = await Booking.findById(req.params.id)
       .populate('shop', 'shopName phoneNumber city completeAddress')
       .populate('customer', 'firstName lastName email phoneNumber');
 
     if (!booking) {
       return sendError(res, 404, 'Booking not found');
     }
+
+    booking = await checkAndApplyPenalty(booking);
 
     return sendSuccess(res, 200, 'Booking fetched successfully', { booking });
 
@@ -123,7 +129,6 @@ const updateBookingStatus = async (req, res) => {
       return sendError(res, 404, 'Booking not found');
     }
 
-    // Notify the customer whenever the shop/admin changes their booking's status
     const statusMessages = {
       confirmed: 'Your booking has been confirmed.',
       in_progress: 'Work has started on your booking.',

@@ -1,24 +1,26 @@
 const Payment = require('../models/Payment');
 const Booking = require('../models/Booking');
 const createNotification = require('../utils/createNotification');
+const { checkAndApplyPenalty } = require('../utils/checkBookingPenalty');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 
-// Create a payment record for a booking - typically called once a booking is completed
 const createPayment = async (req, res) => {
   try {
     const { booking, method } = req.body;
 
-    const bookingDoc = await Booking.findById(booking);
+    let bookingDoc = await Booking.findById(booking);
     if (!bookingDoc) {
       return sendError(res, 404, 'Booking not found');
     }
+
+    // Make sure any applicable late penalty has already been applied before billing
+    bookingDoc = await checkAndApplyPenalty(bookingDoc);
 
     const existingPayment = await Payment.findOne({ booking });
     if (existingPayment) {
       return sendError(res, 400, 'A payment record already exists for this booking');
     }
 
-    // Sum up the price of all services in the booking to get the total amount
     const amount = bookingDoc.services.reduce((sum, service) => sum + service.price, 0);
 
     const payment = await Payment.create({
@@ -26,6 +28,7 @@ const createPayment = async (req, res) => {
       customer: bookingDoc.customer,
       shop: bookingDoc.shop,
       amount,
+      penaltyAmount: bookingDoc.penaltyAmount,
       method: method || 'cash'
     });
 
@@ -36,7 +39,6 @@ const createPayment = async (req, res) => {
   }
 };
 
-// Get a single payment's details
 const getPaymentDetails = async (req, res) => {
   try {
     const payment = await Payment.findById(req.params.id)
@@ -55,7 +57,6 @@ const getPaymentDetails = async (req, res) => {
   }
 };
 
-// Get all payments - admin/shop-management view
 const getAllPayments = async (req, res) => {
   try {
     const payments = await Payment.find()
@@ -70,7 +71,6 @@ const getAllPayments = async (req, res) => {
   }
 };
 
-// Get all payments belonging to the logged-in customer
 const getMyPayments = async (req, res) => {
   try {
     const payments = await Payment.find({ customer: req.user.userId })
@@ -84,7 +84,6 @@ const getMyPayments = async (req, res) => {
   }
 };
 
-// Update payment status - e.g. mark as paid, or refunded
 const updatePaymentStatus = async (req, res) => {
   try {
     const { status, method } = req.body;
@@ -108,7 +107,6 @@ const updatePaymentStatus = async (req, res) => {
       return sendError(res, 404, 'Payment not found');
     }
 
-    // Notify the customer when their payment is confirmed as paid
     if (status === 'paid') {
       await createNotification({
         recipient: payment.customer,
@@ -126,7 +124,6 @@ const updatePaymentStatus = async (req, res) => {
   }
 };
 
-// Generate a simple invoice summary for a payment
 const generateInvoice = async (req, res) => {
   try {
     const payment = await Payment.findById(req.params.id)
