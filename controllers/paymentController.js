@@ -1,7 +1,7 @@
 const Payment = require('../models/Payment');
 const Booking = require('../models/Booking');
 const createNotification = require('../utils/createNotification');
-const { checkAndApplyPenalty } = require('../utils/checkBookingPenalty');
+const { checkAllPenalties } = require('../utils/checkBookingPenalty');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 
 const createPayment = async (req, res) => {
@@ -13,8 +13,7 @@ const createPayment = async (req, res) => {
       return sendError(res, 404, 'Booking not found');
     }
 
-    // Make sure any applicable late penalty has already been applied before billing
-    bookingDoc = await checkAndApplyPenalty(bookingDoc);
+    bookingDoc = await checkAllPenalties(bookingDoc);
 
     const existingPayment = await Payment.findOne({ booking });
     if (existingPayment) {
@@ -22,13 +21,14 @@ const createPayment = async (req, res) => {
     }
 
     const amount = bookingDoc.services.reduce((sum, service) => sum + service.price, 0);
+    const totalPenalty = bookingDoc.penaltyAmount + bookingDoc.customerLatePenaltyAmount;
 
     const payment = await Payment.create({
       booking,
       customer: bookingDoc.customer,
       shop: bookingDoc.shop,
       amount,
-      penaltyAmount: bookingDoc.penaltyAmount,
+      penaltyAmount: totalPenalty,
       method: method || 'cash'
     });
 

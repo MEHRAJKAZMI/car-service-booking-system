@@ -70,13 +70,37 @@ const bookingSchema = new mongoose.Schema({
     default: ''
   },
 
-  // Late/no-show penalty tracking
-  // penaltyApplied prevents the same booking from being charged more than once
+  // No-show penalty - booking never actioned within 30 min of scheduledAt
   penaltyApplied: {
     type: Boolean,
     default: false
   },
   penaltyAmount: {
+    type: Number,
+    default: 0
+  },
+
+  // CUSTOMER late-arrival tracking - only used for "shop_visit" bookings.
+  // Customer states this at booking-creation time (how long they'll take to reach the shop)
+  customerEstimatedArrivalMinutes: {
+    type: Number,
+    default: null
+  },
+  // Calculated automatically = createdAt + customerEstimatedArrivalMinutes + 10 min grace period
+  customerExpectedArrivalTime: {
+    type: Date,
+    default: null
+  },
+  // Set by shop staff when the customer actually shows up
+  customerArrivedAt: {
+    type: Date,
+    default: null
+  },
+  customerLatePenaltyApplied: {
+    type: Boolean,
+    default: false
+  },
+  customerLatePenaltyAmount: {
     type: Number,
     default: 0
   }

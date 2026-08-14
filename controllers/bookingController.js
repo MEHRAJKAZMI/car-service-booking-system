@@ -1,12 +1,12 @@
 const Booking = require('../models/Booking');
 const Shop = require('../models/Shop');
 const createNotification = require('../utils/createNotification');
-const { checkAndApplyPenalty, checkAndApplyPenaltyToMany } = require('../utils/checkBookingPenalty');
+const { checkAllPenalties, checkAllPenaltiesForMany, CUSTOMER_GRACE_MINUTES } = require('../utils/checkBookingPenalty');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 
 const createBooking = async (req, res) => {
   try {
-    const { shop, serviceIds, vehicle, bookingType, address, scheduledAt, notes } = req.body;
+    const { shop, serviceIds, vehicle, bookingType, address, scheduledAt, notes, customerEstimatedArrivalMinutes } = req.body;
 
     if (bookingType === 'roadside' && (!address || address.trim() === '')) {
       return sendError(res, 400, 'Address is required for roadside bookings');
@@ -34,7 +34,7 @@ const createBooking = async (req, res) => {
       });
     }
 
-    const booking = await Booking.create({
+    const bookingData = {
       customer: req.user.userId,
       shop,
       services: selectedServices,
@@ -43,7 +43,18 @@ const createBooking = async (req, res) => {
       address: bookingType === 'roadside' ? address : '',
       scheduledAt,
       notes
-    });
+    };
+
+    // Only relevant for shop_visit bookings, and only if the customer actually provided an estimate
+    if (bookingType === 'shop_visit' && customerEstimatedArrivalMinutes) {
+      const now = new Date();
+      bookingData.customerEstimatedArrivalMinutes = customerEstimatedArrivalMinutes;
+      bookingData.customerExpectedArrivalTime = new Date(
+        now.getTime() + (customerEstimatedArrivalMinutes + CUSTOMER_GRACE_MINUTES) * 60 * 1000
+      );
+    }
+
+    const booking = await Booking.create(bookingData);
 
     await createNotification({
       recipient: req.user.userId,
@@ -66,7 +77,7 @@ const getMyBookings = async (req, res) => {
       .populate('shop', 'shopName phoneNumber city')
       .sort({ createdAt: -1 });
 
-    bookings = await checkAndApplyPenaltyToMany(bookings);
+    bookings = await checkAllPenaltiesForMany(bookings);
 
     return sendSuccess(res, 200, 'Bookings fetched successfully', { bookings });
 
@@ -82,7 +93,7 @@ const getAllBookings = async (req, res) => {
       .populate('customer', 'firstName lastName email phoneNumber')
       .sort({ createdAt: -1 });
 
-    bookings = await checkAndApplyPenaltyToMany(bookings);
+    bookings = await checkAllPenaltiesForMany(bookings);
 
     return sendSuccess(res, 200, 'Bookings fetched successfully', { bookings });
 
@@ -101,7 +112,7 @@ const getBookingDetails = async (req, res) => {
       return sendError(res, 404, 'Booking not found');
     }
 
-    booking = await checkAndApplyPenalty(booking);
+    booking = await checkAllPenalties(booking);
 
     return sendSuccess(res, 200, 'Booking fetched successfully', { booking });
 
@@ -152,6 +163,33 @@ const updateBookingStatus = async (req, res) => {
   }
 };
 
+// Shop staff marks the customer as having physically arrived at the shop
+const markCustomerArrived = async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+
+    if (!booking) {
+      return sendError(res, 404, 'Booking not found');
+    }
+
+    if (booking.bookingType !== 'shop_visit') {
+      return sendError(res, 400, 'This action only applies to shop_visit bookings');
+    }
+
+    if (booking.customerArrivedAt) {
+      return sendError(res, 400, 'Customer arrival has already been recorded for this booking');
+    }
+
+    booking.customerArrivedAt = new Date();
+    await booking.save();
+
+    return sendSuccess(res, 200, 'Customer arrival recorded successfully', { booking });
+
+  } catch (error) {
+    return sendError(res, 500, error.message);
+  }
+};
+
 const cancelBooking = async (req, res) => {
   try {
     const { reason } = req.body;
@@ -187,5 +225,6 @@ module.exports = {
   getAllBookings,
   getBookingDetails,
   updateBookingStatus,
+  markCustomerArrived,
   cancelBooking
 };
