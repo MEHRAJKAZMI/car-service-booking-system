@@ -2,8 +2,6 @@ const Review = require('../models/Review');
 const Booking = require('../models/Booking');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 
-// Create a review - only allowed for a booking that is actually completed,
-// and only by the customer who made that booking
 const createReview = async (req, res) => {
   try {
     const { booking, rating, comment } = req.body;
@@ -42,14 +40,12 @@ const createReview = async (req, res) => {
   }
 };
 
-// Get all reviews for a specific shop
 const getShopReviews = async (req, res) => {
   try {
     const reviews = await Review.find({ shop: req.params.shopId })
       .populate('customer', 'firstName lastName')
       .sort({ createdAt: -1 });
 
-    // Calculate a simple average rating for convenience
     const averageRating = reviews.length > 0
       ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
       : null;
@@ -61,7 +57,6 @@ const getShopReviews = async (req, res) => {
   }
 };
 
-// Get a single review's details
 const getReviewDetails = async (req, res) => {
   try {
     const review = await Review.findById(req.params.id)
@@ -79,7 +74,6 @@ const getReviewDetails = async (req, res) => {
   }
 };
 
-// Update a review - only the customer who wrote it can update it
 const updateReview = async (req, res) => {
   try {
     const { rating, comment } = req.body;
@@ -106,7 +100,6 @@ const updateReview = async (req, res) => {
   }
 };
 
-// Delete a review - the customer who wrote it, or an admin, can delete it
 const deleteReview = async (req, res) => {
   try {
     const review = await Review.findById(req.params.id);

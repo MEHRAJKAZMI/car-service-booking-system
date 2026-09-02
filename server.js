@@ -12,20 +12,21 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const auditLogRoutes = require('./routes/auditLogRoutes');
+const walletRoutes = require('./routes/walletRoutes');
+const commissionRoutes = require('./routes/commissionRoutes');
+const transferRoutes = require('./routes/transferRoutes');
+const financialHistoryRoutes = require('./routes/financialHistoryRoutes');
+const accountRoutes = require('./routes/accountRoutes');
 const connectDB = require('./config/db');
 const errorHandler = require('./middlewares/errorHandler');
 
 connectDB();
 
 const app = express();
-
 app.use(express.json());
-
 const PORT = process.env.PORT || 5000;
 
-app.get('/', (req, res) => {
-  res.send('Car Service Booking System API is running v2');
-});
+app.get('/', (req, res) => res.send('Car Service Booking System API is running v2'));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/roles', roleRoutes);
@@ -38,6 +39,11 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
+app.use('/api/wallets', walletRoutes);
+app.use('/api/commissions', commissionRoutes);
+app.use('/api/transfers', transferRoutes);
+app.use('/api/financial-history', financialHistoryRoutes);
+app.use('/api/accounts', accountRoutes);
 
 app.use((req, res, next) => {
   res.status(404).json({ success: false, message: `Route not found: ${req.originalUrl}` });
