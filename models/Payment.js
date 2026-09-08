@@ -1,166 +1,79 @@
-const Payment = require('../models/Payment');
-const Booking = require('../models/Booking');
-const createNotification = require('../utils/createNotification');
-const { checkAllPenalties } = require('../utils/checkBookingPenalty');
-const { sendSuccess, sendError } = require('../utils/apiResponse');
+const mongoose = require('mongoose');
 
-const createPayment = async (req, res) => {
-  try {
-    const { booking, method } = req.body;
+const paymentSchema = new mongoose.Schema({
+  // "booking"        -> paying for a completed service
+  // "wallet_recharge" -> customer topping up their wallet
+  paymentType: {
+    type: String,
+    enum: ['booking', 'wallet_recharge'],
+    default: 'booking'
+  },
 
-    let bookingDoc = await Booking.findById(booking);
-    if (!bookingDoc) {
-      return sendError(res, 404, 'Booking not found');
-    }
+  // Required only when paymentType === 'booking'
+  booking: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Booking'
+  },
 
-    bookingDoc = await checkAllPenalties(bookingDoc);
+  customer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
 
-    const existingPayment = await Payment.findOne({ booking });
-    if (existingPayment) {
-      return sendError(res, 400, 'A payment record already exists for this booking');
-    }
+  // Only relevant for booking payments
+  shop: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Shop'
+  },
 
-    const amount = bookingDoc.services.reduce((sum, service) => sum + service.price, 0);
-    const totalPenalty = bookingDoc.penaltyAmount + bookingDoc.customerLatePenaltyAmount;
+  amount: {
+    type: Number,
+    required: true
+  },
 
-    const payment = await Payment.create({
-      booking,
-      customer: bookingDoc.customer,
-      shop: bookingDoc.shop,
-      amount,
-      penaltyAmount: totalPenalty,
-      method: method || 'cash'
-    });
+  penaltyAmount: {
+    type: Number,
+    default: 0
+  },
 
-    return sendSuccess(res, 201, 'Payment record created successfully', { payment });
+  // Filled in once a "booking" payment is marked paid
+  commissionAmount: {
+    type: Number,
+    default: 0
+  },
+  shopPayoutAmount: {
+    type: Number,
+    default: 0
+  },
 
-  } catch (error) {
-    return sendError(res, 500, error.message);
+  method: {
+    type: String,
+    enum: ['cash', 'wallet', 'card', 'bank_transfer'],
+    default: 'cash'
+  },
+
+  status: {
+    type: String,
+    enum: ['pending', 'paid', 'refunded'],
+    default: 'pending'
+  },
+
+  // Guards against double-crediting/double-debiting the wallet
+  // if updatePaymentStatus is ever called twice
+  walletProcessed: {
+    type: Boolean,
+    default: false
+  },
+
+  paidAt: {
+    type: Date,
+    default: null
   }
-};
+}, {
+  timestamps: true
+});
 
-const getPaymentDetails = async (req, res) => {
-  try {
-    const payment = await Payment.findById(req.params.id)
-      .populate('customer', 'firstName lastName email')
-      .populate('shop', 'shopName')
-      .populate('booking');
+const Payment = mongoose.model('Payment', paymentSchema);
 
-    if (!payment) {
-      return sendError(res, 404, 'Payment not found');
-    }
-
-    return sendSuccess(res, 200, 'Payment fetched successfully', { payment });
-
-  } catch (error) {
-    return sendError(res, 500, error.message);
-  }
-};
-
-const getAllPayments = async (req, res) => {
-  try {
-    const payments = await Payment.find()
-      .populate('customer', 'firstName lastName email')
-      .populate('shop', 'shopName')
-      .sort({ createdAt: -1 });
-
-    return sendSuccess(res, 200, 'Payments fetched successfully', { payments });
-
-  } catch (error) {
-    return sendError(res, 500, error.message);
-  }
-};
-
-const getMyPayments = async (req, res) => {
-  try {
-    const payments = await Payment.find({ customer: req.user.userId })
-      .populate('shop', 'shopName')
-      .sort({ createdAt: -1 });
-
-    return sendSuccess(res, 200, 'Payments fetched successfully', { payments });
-
-  } catch (error) {
-    return sendError(res, 500, error.message);
-  }
-};
-
-const updatePaymentStatus = async (req, res) => {
-  try {
-    const { status, method } = req.body;
-
-    const validStatuses = ['pending', 'paid', 'refunded'];
-    if (!validStatuses.includes(status)) {
-      return sendError(res, 400, 'Invalid status value');
-    }
-
-    const updateData = { status };
-    if (method) updateData.method = method;
-    if (status === 'paid') updateData.paidAt = new Date();
-
-    const payment = await Payment.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true }
-    );
-
-    if (!payment) {
-      return sendError(res, 404, 'Payment not found');
-    }
-
-    if (status === 'paid') {
-      await createNotification({
-        recipient: payment.customer,
-        title: 'Payment Received',
-        message: `Your payment of Rs. ${payment.amount + payment.penaltyAmount} has been received.`,
-        type: 'general',
-        relatedBooking: payment.booking
-      });
-    }
-
-    return sendSuccess(res, 200, 'Payment status updated successfully', { payment });
-
-  } catch (error) {
-    return sendError(res, 500, error.message);
-  }
-};
-
-const generateInvoice = async (req, res) => {
-  try {
-    const payment = await Payment.findById(req.params.id)
-      .populate('customer', 'firstName lastName email phoneNumber')
-      .populate('shop', 'shopName completeAddress phoneNumber')
-      .populate('booking');
-
-    if (!payment) {
-      return sendError(res, 404, 'Payment not found');
-    }
-
-    const invoice = {
-      invoiceNumber: `INV-${payment._id.toString().slice(-8).toUpperCase()}`,
-      issuedAt: new Date(),
-      customer: payment.customer,
-      shop: payment.shop,
-      services: payment.booking.services,
-      subtotal: payment.amount,
-      penalty: payment.penaltyAmount,
-      total: payment.amount + payment.penaltyAmount,
-      status: payment.status,
-      method: payment.method,
-      paidAt: payment.paidAt
-    };
-
-    return sendSuccess(res, 200, 'Invoice generated successfully', { invoice });
-
-  } catch (error) {
-    return sendError(res, 500, error.message);
-  }
-};
-
-module.exports = {
-  createPayment,
-  getPaymentDetails,
-  getAllPayments,
-  getMyPayments,
-  updatePaymentStatus,
-  generateInvoice
-};
+module.exports = Payment;
