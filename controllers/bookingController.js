@@ -2,8 +2,10 @@ const Booking = require('../models/Booking');
 const Shop = require('../models/Shop');
 const Wallet = require('../models/Wallet');
 const Payment = require('../models/Payment');
+const mongoose = require('mongoose');
 const createNotification = require('../utils/createNotification');
 const { creditWallet } = require('../services/walletService');
+const { refundPaidBookingPayment } = require('../services/paymentSettlementService');
 const { checkAllPenalties, checkAllPenaltiesForMany, CUSTOMER_GRACE_MINUTES } = require('../utils/checkBookingPenalty');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 
@@ -19,6 +21,9 @@ const createBooking = async (req, res) => {
     if (!shopDoc) {
       return sendError(res, 404, 'Shop not found');
     }
+    if (shopDoc.status !== 'approved') {
+      return sendError(res, 400, 'Bookings can only be created for approved shops');
+    }
 
     if (!Array.isArray(serviceIds) || serviceIds.length === 0) {
       return sendError(res, 400, 'At least one service must be selected');
@@ -30,6 +35,9 @@ const createBooking = async (req, res) => {
       const service = shopDoc.services.id(serviceId);
       if (!service) {
         return sendError(res, 400, `Service with id ${serviceId} not found on this shop`);
+      }
+      if (service.status !== 'active') {
+        return sendError(res, 400, `Service with id ${serviceId} is not currently available`);
       }
       selectedServices.push({ serviceId: service._id, name: service.name, price: service.price });
       totalCost += service.price;
@@ -114,10 +122,15 @@ const getAllBookings = async (req, res) => {
 const getBookingDetails = async (req, res) => {
   try {
     let booking = await Booking.findById(req.params.id)
-      .populate('shop', 'shopName phoneNumber city completeAddress')
+      .populate('shop', 'shopName phoneNumber city completeAddress registeredBy')
       .populate('customer', 'firstName lastName email phoneNumber');
     if (!booking) {
       return sendError(res, 404, 'Booking not found');
+    }
+    const isCustomer = booking.customer._id.toString() === req.user.userId;
+    const isShopOwner = booking.shop.registeredBy && booking.shop.registeredBy.toString() === req.user.userId;
+    if (!isCustomer && !isShopOwner) {
+      return sendError(res, 403, 'You can only view your own booking details');
     }
     booking = await checkAllPenalties(booking);
     return sendSuccess(res, 200, 'Booking fetched successfully', { booking });
@@ -181,38 +194,41 @@ const markCustomerArrived = async (req, res) => {
   }
 };
 
-// Cancelling a booking now also refunds the customer's wallet IF a "paid"
-// booking payment already existed for it (i.e. they were already charged).
+// A customer may only cancel their own non-completed booking. Any settled payment
+// is refunded through the same transactional settlement service used by payments.
 const cancelBooking = async (req, res) => {
   try {
     const { reason } = req.body;
 
-    const booking = await Booking.findByIdAndUpdate(
-      req.params.id,
-      { status: 'cancelled', cancellationReason: reason || '' },
-      { new: true }
-    );
+    const existingBooking = await Booking.findById(req.params.id);
 
-    if (!booking) {
+    if (!existingBooking) {
       return sendError(res, 404, 'Booking not found');
     }
+    if (existingBooking.customer.toString() !== req.user.userId) {
+      return sendError(res, 403, 'You can only cancel your own bookings');
+    }
+    if (['completed', 'cancelled'].includes(existingBooking.status)) {
+      return sendError(res, 400, 'This booking cannot be cancelled');
+    }
 
-    const paidPayment = await Payment.findOne({ booking: booking._id, paymentType: 'booking', status: 'paid' });
-    if (paidPayment) {
-      const wallet = await Wallet.findOne({ user: booking.customer });
-      if (wallet) {
-        const refundAmount = paidPayment.amount + paidPayment.penaltyAmount;
-        await creditWallet({
-          walletId: wallet._id,
-          amount: refundAmount,
-          reason: 'refund',
-          relatedBooking: booking._id,
-          relatedPayment: paidPayment._id,
-          description: 'Refund for cancelled booking'
-        });
-        paidPayment.status = 'refunded';
-        await paidPayment.save();
-      }
+    let booking;
+    let paidPayment;
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        booking = await Booking.findById(existingBooking._id).session(session);
+        booking.status = 'cancelled';
+        booking.cancellationReason = reason || '';
+        paidPayment = await Payment.findOne({ booking: booking._id, paymentType: 'booking', status: 'paid' }).session(session);
+        if (paidPayment) {
+          await refundPaidBookingPayment(paidPayment, session);
+          await paidPayment.save({ session });
+        }
+        await booking.save({ session });
+      });
+    } finally {
+      await session.endSession();
     }
 
     await createNotification({

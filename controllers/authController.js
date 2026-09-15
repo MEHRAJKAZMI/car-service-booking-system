@@ -1,15 +1,21 @@
 const User = require('../models/User');
+const Role = require('../models/Role');
 const jwt = require('jsonwebtoken');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 
 const register = async (req, res) => {
   try {
-    const { firstName, lastName, email, phoneNumber, password, role } = req.body;
+    const { firstName, lastName, email, phoneNumber, password } = req.body;
 
     const existingUser = await User.findOne({ email });
 
     if (existingUser) {
       return sendError(res, 400, 'Email is already registered');
+    }
+
+    const customerRole = await Role.findOne({ name: /^customer$/i, status: 'active' });
+    if (!customerRole) {
+      return sendError(res, 500, 'Customer role is not configured. Ask an administrator to run the seed script.');
     }
 
     const newUser = await User.create({
@@ -18,7 +24,7 @@ const register = async (req, res) => {
       email,
       phoneNumber,
       password,
-      role
+      role: customerRole._id
     });
 
     return sendSuccess(res, 201, 'User registered successfully', {
@@ -45,6 +51,10 @@ const login = async (req, res) => {
 
     if (!user) {
       return sendError(res, 401, 'Invalid email or password');
+    }
+
+    if (user.status !== 'active') {
+      return sendError(res, 403, 'Your account is inactive');
     }
 
     const isMatch = await user.comparePassword(password);
@@ -170,6 +180,7 @@ const changePassword = async (req, res) => {
     }
 
     user.password = newPassword;
+    user.refreshToken = null;
     await user.save();
 
     return sendSuccess(res, 200, 'Password changed successfully');
@@ -196,7 +207,9 @@ const forgotPassword = async (req, res) => {
     user.otpExpiry = otpExpiry;
     await user.save();
 
-    return sendSuccess(res, 200, 'OTP generated successfully (for development only - would normally be emailed)', { otp });
+    const response = {};
+    if (process.env.NODE_ENV !== 'production') response.otp = otp;
+    return sendSuccess(res, 200, 'If this email is registered, an OTP has been sent', response);
 
   } catch (error) {
     return sendError(res, 500, error.message);
@@ -255,6 +268,7 @@ const resetPassword = async (req, res) => {
     }
 
     user.password = newPassword;
+    user.refreshToken = null;
     await user.save();
 
     return sendSuccess(res, 200, 'Password reset successfully');
@@ -266,6 +280,7 @@ const resetPassword = async (req, res) => {
 
 const logout = async (req, res) => {
   try {
+    await User.findByIdAndUpdate(req.user.userId, { refreshToken: null });
     return sendSuccess(res, 200, 'Logout successful');
   } catch (error) {
     return sendError(res, 500, error.message);

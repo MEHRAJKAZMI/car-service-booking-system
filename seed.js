@@ -42,7 +42,15 @@ const run = async () => {
       console.log('Super Admin role already exists:', superAdminRole._id.toString());
     }
 
-    // 3. Create a test admin user assigned to the Super Admin role
+    // 3. Create the default role used by public registration. It deliberately
+    // has no management permissions.
+    let customerRole = await Role.findOne({ name: 'Customer' });
+    if (!customerRole) {
+      customerRole = await Role.create({ name: 'Customer', description: 'Default customer role', status: 'active' });
+      console.log('Created Customer role:', customerRole._id.toString());
+    }
+
+    // 4. Create a test admin user assigned to the Super Admin role
     const testEmail = 'admin@test.com';
     let adminUser = await User.findOne({ email: testEmail });
     if (!adminUser) {

@@ -1,21 +1,20 @@
 const Payment = require('../models/Payment');
+const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
-const Wallet = require('../models/Wallet');
+const Shop = require('../models/Shop');
+const Role = require('../models/Role');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 const createNotification = require('../utils/createNotification');
-const { creditWallet, debitWallet, getOrCreateCompanyWallet } = require('../services/walletService');
-const { calculateAndRecordCommission } = require('../services/commissionService');
-const Transfer = require('../models/Transfer');
+const { settlePaidPayment, refundPaidBookingPayment } = require('../services/paymentSettlementService');
 
-// Small local helper - looks up a customer's wallet by their user id.
-// Throws a clear error if they don't have one yet (they must call
-// POST /api/wallets once, same as before).
-const getCustomerWallet = async (userId) => {
-  const wallet = await Wallet.findOne({ user: userId, ownerType: 'customer' });
-  if (!wallet) {
-    throw new Error('This customer does not have a wallet yet');
+const canAccessPayment = async (user, payment) => {
+  if (payment.customer.toString() === user.userId) return true;
+  if (payment.shop) {
+    const shop = await Shop.findById(payment.shop).select('registeredBy');
+    if (shop && shop.registeredBy.toString() === user.userId) return true;
   }
-  return wallet;
+  const role = await Role.findById(user.role).populate('permissions');
+  return Boolean(role && role.permissions.some((permission) => ['ALL', 'Shop Management', 'Wallet Management'].includes(permission.name)));
 };
 
 // ---------------------------------------------------------
@@ -55,6 +54,16 @@ const createPayment = async (req, res) => {
     if (!booking) {
       return sendError(res, 404, 'Booking not found');
     }
+    if (booking.customer.toString() !== req.user.userId) {
+      return sendError(res, 403, 'You can only create payments for your own bookings');
+    }
+    if (booking.status !== 'completed') {
+      return sendError(res, 400, 'Only completed bookings can be paid');
+    }
+    const existingPayment = await Payment.findOne({ booking: booking._id, paymentType: 'booking', status: { $in: ['pending', 'paid'] } });
+    if (existingPayment) {
+      return sendError(res, 400, 'A pending or paid payment already exists for this booking');
+    }
 
     const servicesTotal = booking.services.reduce((sum, s) => sum + s.price, 0);
     const totalPenalty = (booking.penaltyAmount || 0) + (booking.customerLatePenaltyAmount || 0);
@@ -91,103 +100,44 @@ const updatePaymentStatus = async (req, res) => {
       return sendError(res, 404, 'Payment not found');
     }
 
-    if (!['pending', 'paid', 'refunded'].includes(status)) {
+    if (!['paid', 'refunded'].includes(status)) {
       return sendError(res, 400, 'Invalid status value');
     }
 
-    payment.status = status;
+    if (payment.status === status) return sendError(res, 400, `Payment is already ${status}`);
+    if (payment.status === 'refunded' || (payment.status === 'paid' && status !== 'refunded')) {
+      return sendError(res, 400, 'Invalid payment status transition');
+    }
+    if (!(await canAccessPayment(req.user, payment))) {
+      return sendError(res, 403, 'You can only view your own payment details');
+    }
+    if (status === 'refunded' && payment.status !== 'paid') {
+      return sendError(res, 400, 'Only paid payments can be refunded');
+    }
 
-    if (status === 'paid') {
-      payment.paidAt = new Date();
-
-      if (!payment.walletProcessed) {
-
-        if (payment.paymentType === 'wallet_recharge') {
-          const customerWallet = await getCustomerWallet(payment.customer);
-
-          await creditWallet({
-            walletId: customerWallet._id,
-            amount: payment.amount,
-            reason: 'wallet_recharge',
-            relatedPayment: payment._id,
-            description: 'Wallet top-up'
-          });
-
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const transactionalPayment = await Payment.findById(payment._id).session(session);
+        if (status === 'paid') {
+          transactionalPayment.status = 'paid';
+          await settlePaidPayment(transactionalPayment, session);
         } else {
-          // paymentType === 'booking'
-          const totalAmount = payment.amount + (payment.penaltyAmount || 0);
-          const customerWallet = await getCustomerWallet(payment.customer);
-
-          // 1. Debit customer for the full amount (service price + any penalty)
-          await debitWallet({
-            walletId: customerWallet._id,
-            amount: totalAmount,
-            reason: 'booking_payment',
-            relatedBooking: payment.booking,
-            relatedPayment: payment._id,
-            description: 'Booking payment'
-          });
-
-          // 2. Split the SERVICE amount (not the penalty) into commission + shop payout
-          const commission = await calculateAndRecordCommission({
-            booking: payment.booking,
-            payment: payment._id,
-            shop: payment.shop,
-            grossAmount: payment.amount
-          });
-
-          payment.commissionAmount = commission.commissionAmount;
-          // Penalties stay fully with the platform, on top of the commission split
-          payment.shopPayoutAmount = commission.shopAmount;
-
-          // 3. Credit commission (+ any penalty) into the company wallet
-          const companyWallet = await getOrCreateCompanyWallet();
-          await creditWallet({
-            walletId: companyWallet._id,
-            amount: commission.commissionAmount + (payment.penaltyAmount || 0),
-            reason: 'commission_income',
-            relatedBooking: payment.booking,
-            relatedPayment: payment._id,
-            description: 'Commission + penalty income'
-          });
-
-          // 4. Create a pending payout for the shop
-          await Transfer.create({
-            shop: payment.shop,
-            booking: payment.booking,
-            amount: commission.shopAmount,
-            status: 'pending'
-          });
+          await refundPaidBookingPayment(transactionalPayment, session);
         }
-
-        payment.walletProcessed = true;
-      }
-
-      await createNotification({
-        user: payment.customer,
-        title: payment.paymentType === 'wallet_recharge' ? 'Wallet Recharged' : 'Payment Received',
-        message: payment.paymentType === 'wallet_recharge'
-          ? `Your wallet has been credited with Rs. ${payment.amount}.`
-          : `Your payment of Rs. ${payment.amount + (payment.penaltyAmount || 0)} has been processed.`,
-        relatedPayment: payment._id
+        await transactionalPayment.save({ session });
+        Object.assign(payment, transactionalPayment.toObject());
       });
+    } finally {
+      await session.endSession();
     }
 
-    if (status === 'refunded' && payment.paymentType === 'booking' && payment.walletProcessed) {
-      const totalAmount = payment.amount + (payment.penaltyAmount || 0);
-      const customerWallet = await getCustomerWallet(payment.customer);
-
-      await creditWallet({
-        walletId: customerWallet._id,
-        amount: totalAmount,
-        reason: 'refund',
-        relatedBooking: payment.booking,
-        relatedPayment: payment._id,
-        description: 'Booking refund'
-      });
-    }
-
-    await payment.save();
+    await createNotification({
+      recipient: payment.customer,
+      title: status === 'paid' && payment.paymentType === 'wallet_recharge' ? 'Wallet Recharged' : status === 'paid' ? 'Payment Received' : 'Payment Refunded',
+      message: status === 'refunded' ? `Your payment of Rs. ${payment.amount + (payment.penaltyAmount || 0)} has been refunded.` : payment.paymentType === 'wallet_recharge' ? `Your wallet has been credited with Rs. ${payment.amount}.` : `Your payment of Rs. ${payment.amount + (payment.penaltyAmount || 0)} has been processed.`,
+      type: 'general'
+    });
 
     return sendSuccess(res, 200, 'Payment status updated successfully', { payment });
 
@@ -208,6 +158,9 @@ const getPaymentDetails = async (req, res) => {
 
     if (!payment) {
       return sendError(res, 404, 'Payment not found');
+    }
+    if (!(await canAccessPayment(req.user, payment))) {
+      return sendError(res, 403, 'You can only view your own invoice');
     }
 
     return sendSuccess(res, 200, 'Payment fetched successfully', { payment });

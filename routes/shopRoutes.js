@@ -32,8 +32,8 @@ router.post(
   registerShop
 );
 
-router.get('/', protect, authorize('Shop Management'), getAllShops);
-router.get('/:id', protect, authorize('Shop Management'), getShopDetails);
+router.get('/', protect, getAllShops);
+router.get('/:id', protect, getShopDetails);
 router.put('/:id', protect, authorize('Shop Management'), updateShop);
 router.delete('/:id', protect, authorize('Shop Management'), deleteShop);
 router.put('/:id/approve', protect, authorize('Shop Management'), approveShop);

@@ -32,6 +32,7 @@ const walletTransactionSchema = new mongoose.Schema({
       'wallet_recharge',
       'booking_payment',
       'commission_received',
+      'commission_income',
       'shop_payout',
       'penalty',
       'refund'

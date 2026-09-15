@@ -9,8 +9,8 @@ const COMMISSION_RATE_PERCENT = Number(process.env.COMMISSION_RATE_PERCENT) || 5
 // Calculates and PERMANENTLY RECORDS the commission split for a booking.
 // Called exactly once per booking, at the moment its payment is completed.
 // Throws if a commission already exists for this booking (prevents double-charging).
-const calculateAndRecordCommission = async ({ booking, payment, shop, grossAmount }) => {
-  const existing = await Commission.findOne({ booking });
+const calculateAndRecordCommission = async ({ booking, payment, shop, grossAmount, session }) => {
+  const existing = await Commission.findOne({ booking }).session(session || null);
   if (existing) {
     throw new Error('Commission has already been calculated for this booking');
   }
@@ -18,7 +18,7 @@ const calculateAndRecordCommission = async ({ booking, payment, shop, grossAmoun
   const commissionAmount = Math.round((grossAmount * COMMISSION_RATE_PERCENT) / 100 * 100) / 100;
   const shopAmount = grossAmount - commissionAmount;
 
-  const commission = await Commission.create({
+  const commissions = await Commission.create([{
     booking,
     payment,
     shop,
@@ -26,7 +26,8 @@ const calculateAndRecordCommission = async ({ booking, payment, shop, grossAmoun
     commissionRate: COMMISSION_RATE_PERCENT,
     commissionAmount,
     shopAmount
-  });
+  }], { session });
+  const commission = commissions[0];
 
   return commission;
 };

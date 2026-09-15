@@ -32,6 +32,8 @@ const walletSchema = new mongoose.Schema({
 
 // A customer can only ever have ONE wallet
 walletSchema.index({ user: 1 }, { unique: true, partialFilterExpression: { user: { $type: 'objectId' } } });
+// The platform has exactly one company wallet.
+walletSchema.index({ ownerType: 1 }, { unique: true, partialFilterExpression: { ownerType: 'company' } });
 
 const Wallet = mongoose.model('Wallet', walletSchema);
 

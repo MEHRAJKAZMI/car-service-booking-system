@@ -1,6 +1,12 @@
 const Shop = require('../models/Shop');
+const Role = require('../models/Role');
 const logAction = require('../utils/logAction');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
+
+const canManageShops = async (roleId) => {
+  const role = await Role.findById(roleId).populate('permissions');
+  return Boolean(role && role.permissions.some((permission) => permission.name === 'ALL' || permission.name === 'Shop Management'));
+};
 
 const registerShop = async (req, res) => {
   try {
@@ -60,7 +66,8 @@ const registerShop = async (req, res) => {
 
 const getAllShops = async (req, res) => {
   try {
-    const shops = await Shop.find().populate('registeredBy', 'firstName lastName email');
+    const manager = await canManageShops(req.user.role);
+    const shops = await Shop.find(manager ? {} : { status: 'approved' }).populate('registeredBy', 'firstName lastName email');
     return sendSuccess(res, 200, 'Shops fetched successfully', { shops });
   } catch (error) {
     return sendError(res, 500, error.message);
@@ -72,6 +79,9 @@ const getShopDetails = async (req, res) => {
     const shop = await Shop.findById(req.params.id).populate('registeredBy', 'firstName lastName email');
     if (!shop) {
       return sendError(res, 404, 'Shop not found');
+    }
+    if (shop.status !== 'approved' && !(await canManageShops(req.user.role)) && shop.registeredBy._id.toString() !== req.user.userId) {
+      return sendError(res, 403, 'This shop is not publicly available');
     }
     return sendSuccess(res, 200, 'Shop fetched successfully', { shop });
   } catch (error) {

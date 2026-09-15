@@ -1,10 +1,21 @@
 const Account = require('../models/Account');
+const Role = require('../models/Role');
+const Shop = require('../models/Shop');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
+
+const canManageWallets = async (roleId) => {
+  const role = await Role.findById(roleId).populate('permissions');
+  return Boolean(role && role.permissions.some((permission) => permission.name === 'ALL' || permission.name === 'Wallet Management'));
+};
 
 const createAccount = async (req, res) => {
   try {
     const { shop, accountType, accountTitle, accountNumber, bankName } = req.body;
 
+    if (shop) {
+      const shopDoc = await Shop.findOne({ _id: shop, registeredBy: req.user.userId });
+      if (!shopDoc) return sendError(res, 403, 'You can only attach an account to your own shop');
+    }
     const account = await Account.create({
       owner: req.user.userId,
       shop: shop || null,
@@ -54,6 +65,9 @@ const getAccount = async (req, res) => {
 // A user's own accounts (used by shop owners to see their own payout destinations)
 const getAccountByUser = async (req, res) => {
   try {
+    if (req.params.userId !== req.user.userId && !(await canManageWallets(req.user.role))) {
+      return sendError(res, 403, 'You can only view your own accounts');
+    }
     const accounts = await Account.find({ owner: req.params.userId });
 
     return sendSuccess(res, 200, 'Accounts fetched successfully', { accounts });
@@ -67,6 +81,11 @@ const updateAccount = async (req, res) => {
   try {
     const { accountTitle, accountNumber, bankName, accountType } = req.body;
 
+    const existingAccount = await Account.findById(req.params.id);
+    if (!existingAccount) return sendError(res, 404, 'Account not found');
+    if (existingAccount.owner.toString() !== req.user.userId && !(await canManageWallets(req.user.role))) {
+      return sendError(res, 403, 'You can only update your own accounts');
+    }
     const account = await Account.findByIdAndUpdate(
       req.params.id,
       { accountTitle, accountNumber, bankName, accountType },
@@ -86,6 +105,11 @@ const updateAccount = async (req, res) => {
 
 const deactivateAccount = async (req, res) => {
   try {
+    const existingAccount = await Account.findById(req.params.id);
+    if (!existingAccount) return sendError(res, 404, 'Account not found');
+    if (existingAccount.owner.toString() !== req.user.userId && !(await canManageWallets(req.user.role))) {
+      return sendError(res, 403, 'You can only deactivate your own accounts');
+    }
     const account = await Account.findByIdAndUpdate(
       req.params.id,
       { status: 'inactive' },

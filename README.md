@@ -78,12 +78,54 @@ car-service-booking-system/
    MONGO_URI=mongodb://127.0.0.1:27017/car-service-booking-system
    JWT_SECRET=your_access_token_secret
    JWT_REFRESH_SECRET=your_refresh_token_secret
+   COMMISSION_RATE_PERCENT=5
    ```
 
-4. Start the development server
+   The payment settlement flow uses MongoDB transactions. For local development,
+   run MongoDB as a replica set (including a single-node replica set); standalone
+   MongoDB instances do not support transactions.
+
+4. Seed the initial roles and administrator:
    ```
-   npm run dev
+   node seed.js
    ```
+   This creates the `Super Admin` and safe default `Customer` roles. Public
+   registration always assigns the Customer role; administrators assign privileged
+   roles through the user-management API.
+
+5. Run the API:
+   ```
+   npm start
+   ```
+
+6. Run the included checks:
+   ```
+   npm test
+   ```
+
+## Payment and wallet rules
+
+- A booking must belong to the customer, use an approved shop, and be completed
+  before a booking payment can be created.
+- Marking a payment as paid atomically debits the customer wallet, records the
+  commission, credits the company wallet, creates the shop payout transfer, and
+  writes ledger entries.
+- A refund is allowed only for a settled booking payment whose shop transfer has
+  not already completed. It reverses both wallet effects and marks the transfer
+  failed in the same transaction.
+- Direct wallet top-ups are restricted to users with `Wallet Management`; normal
+  production recharges should be completed through a verified payment-gateway
+  callback before marking their payment paid.
+
+## Security and access control
+
+- Authentication rejects inactive or deleted users.
+- Customers can view/cancel only their own bookings and view only their own
+  payments and invoices. Shop owners can view records for their own shops.
+- Payout accounts can only be viewed or modified by their owner or a wallet
+  manager.
+- Public shop discovery exposes approved shops only; management users retain
+  access to the full shop list.
 
 The API will be available at `http://localhost:5000`.
 
@@ -156,8 +198,8 @@ or on error:
 | Method | Endpoint | Auth Required | Description |
 |---|---|---|---|
 | POST | `/` | Logged in (any role) | Register a shop (multipart/form-data with file uploads) |
-| GET | `/` | `Shop Management` or `ALL` | Get all shops |
-| GET | `/:id` | `Shop Management` or `ALL` | Get shop details |
+| GET | `/` | Logged in | Get approved shops; managers get all shops |
+| GET | `/:id` | Logged in | Get an approved shop; managers/owners may view non-approved shops |
 | PUT | `/:id` | `Shop Management` or `ALL` | Update shop details |
 | DELETE | `/:id` | `Shop Management` or `ALL` | Delete a shop |
 | PUT | `/:id/approve` | `Shop Management` or `ALL` | Approve a shop |

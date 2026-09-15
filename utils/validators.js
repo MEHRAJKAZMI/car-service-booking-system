@@ -9,8 +9,7 @@ const registerValidation = [
   body('lastName').trim().notEmpty().withMessage('Last name is required'),
   body('email').trim().isEmail().withMessage('A valid email is required'),
   body('phoneNumber').trim().notEmpty().withMessage('Phone number is required'),
-  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('role').notEmpty().withMessage('Role is required')
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
 ];
 
 const loginValidation = [

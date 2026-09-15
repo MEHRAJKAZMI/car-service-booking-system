@@ -16,7 +16,7 @@ const { authorize } = require('../middlewares/authorizeMiddleware');
 // Customer-facing - only touches their OWN wallet
 router.post('/', protect, createWallet);
 router.get('/my-wallet', protect, getMyWallet);
-router.post('/add-money', protect, addMoney);
+router.post('/add-money', protect, authorize('Wallet Management'), addMoney);
 router.get('/my-transactions', protect, getMyTransactions);
 
 // Admin-facing - requires "Wallet Management" permission (or ALL)

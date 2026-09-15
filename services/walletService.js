@@ -7,12 +7,12 @@ const WalletTransaction = require('../models/WalletTransaction');
 // This keeps the "money never disappears" rule enforceable in one place.
 
 // Credits (adds money to) a wallet, and writes the matching ledger entry
-const creditWallet = async ({ walletId, amount, reason, relatedBooking, relatedPayment, description }) => {
+const creditWallet = async ({ walletId, amount, reason, relatedBooking, relatedPayment, description, session }) => {
   if (amount <= 0) {
     throw new Error('Credit amount must be greater than zero');
   }
 
-  const wallet = await Wallet.findById(walletId);
+  const wallet = await Wallet.findById(walletId).session(session || null);
   if (!wallet) {
     throw new Error('Wallet not found');
   }
@@ -22,9 +22,9 @@ const creditWallet = async ({ walletId, amount, reason, relatedBooking, relatedP
   }
 
   wallet.balance += amount;
-  await wallet.save();
+  await wallet.save({ session });
 
-  await WalletTransaction.create({
+  await WalletTransaction.create([{
     wallet: wallet._id,
     type: 'credit',
     amount,
@@ -33,19 +33,19 @@ const creditWallet = async ({ walletId, amount, reason, relatedBooking, relatedP
     relatedBooking: relatedBooking || null,
     relatedPayment: relatedPayment || null,
     description: description || ''
-  });
+  }], { session });
 
   return wallet;
 };
 
 // Debits (removes money from) a wallet - throws if insufficient balance,
 // which is the core safety check preventing a wallet from going negative
-const debitWallet = async ({ walletId, amount, reason, relatedBooking, relatedPayment, description }) => {
+const debitWallet = async ({ walletId, amount, reason, relatedBooking, relatedPayment, description, session }) => {
   if (amount <= 0) {
     throw new Error('Debit amount must be greater than zero');
   }
 
-  const wallet = await Wallet.findById(walletId);
+  const wallet = await Wallet.findById(walletId).session(session || null);
   if (!wallet) {
     throw new Error('Wallet not found');
   }
@@ -59,9 +59,9 @@ const debitWallet = async ({ walletId, amount, reason, relatedBooking, relatedPa
   }
 
   wallet.balance -= amount;
-  await wallet.save();
+  await wallet.save({ session });
 
-  await WalletTransaction.create({
+  await WalletTransaction.create([{
     wallet: wallet._id,
     type: 'debit',
     amount,
@@ -70,16 +70,17 @@ const debitWallet = async ({ walletId, amount, reason, relatedBooking, relatedPa
     relatedBooking: relatedBooking || null,
     relatedPayment: relatedPayment || null,
     description: description || ''
-  });
+  }], { session });
 
   return wallet;
 };
 
 // Gets (or lazily creates) the single company wallet - there is only ever one
-const getOrCreateCompanyWallet = async () => {
-  let companyWallet = await Wallet.findOne({ ownerType: 'company' });
+const getOrCreateCompanyWallet = async (session) => {
+  let companyWallet = await Wallet.findOne({ ownerType: 'company' }).session(session || null);
   if (!companyWallet) {
-    companyWallet = await Wallet.create({ ownerType: 'company', balance: 0 });
+    const wallets = await Wallet.create([{ ownerType: 'company', balance: 0 }], { session });
+    companyWallet = wallets[0];
   }
   return companyWallet;
 };

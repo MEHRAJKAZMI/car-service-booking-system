@@ -6,18 +6,31 @@
     "_exporter_id": "54784521",
     "_collection_link": "https://go.postman.co/collection/54784521-bbb46ff8-f687-4fed-975d-bf3d66b34cdc?source=collection_link"
   },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{accessToken}}", "type": "string" }
+    ]
+  },
   "item": [
     {
       "name": "Auth",
       "item": [
         {
           "name": "login",
+          "event": [{
+            "listen": "test",
+            "script": {"type": "text/javascript", "exec": [
+              "const response = pm.response.json();",
+              "if (response.data) { pm.collectionVariables.set('accessToken', response.data.accessToken); pm.collectionVariables.set('refreshToken', response.data.refreshToken); }"
+            ]}
+          }],
           "request": {
             "method": "POST",
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n  \"email\": \"staffuser@test.com\",\r\n  \"password\": \"staffpass123\"\r\n}",
+              "raw": "{\r\n  \"email\": \"admin@test.com\",\r\n  \"password\": \"Password123!\"\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -243,8 +256,8 @@
               "script": {
                 "exec": [
                   "const response = pm.response.json();\r",
-                  "if (response.resetToken) {\r",
-                  "    pm.environment.set(\"resetToken\", response.resetToken);\r",
+                  "if (response.data && response.data.resetToken) {\r",
+                  "    pm.collectionVariables.set(\"resetToken\", response.data.resetToken);\r",
                   "}"
                 ],
                 "type": "text/javascript",
@@ -1268,6 +1281,129 @@
       ]
     },
     {
+      "name": "Shop Services",
+      "item": [
+        {"name":"Add Service","request":{"method":"POST","url":"{{baseUrl}}/api/shops/{{shopId}}/services"}},
+        {"name":"Update Service","request":{"method":"PUT","url":"{{baseUrl}}/api/shops/{{shopId}}/services/{{serviceId}}"}},
+        {"name":"Remove Service","request":{"method":"DELETE","url":"{{baseUrl}}/api/shops/{{shopId}}/services/{{serviceId}}"}}
+      ]
+    },
+    {
+      "name": "Bookings",
+      "item": [
+        {"name":"Create Booking","request":{"method":"POST","url":"{{baseUrl}}/api/bookings"}},
+        {"name":"My Bookings","request":{"method":"GET","url":"{{baseUrl}}/api/bookings/my-bookings"}},
+        {"name":"Get Booking Details","request":{"method":"GET","url":"{{baseUrl}}/api/bookings/{{bookingId}}"}},
+        {"name":"Cancel Booking","request":{"method":"PUT","url":"{{baseUrl}}/api/bookings/{{bookingId}}/cancel"}},
+        {"name":"All Bookings","request":{"method":"GET","url":"{{baseUrl}}/api/bookings"}},
+        {"name":"Update Booking Status","request":{"method":"PUT","url":"{{baseUrl}}/api/bookings/{{bookingId}}/status"}},
+        {"name":"Mark Customer Arrived","request":{"method":"PUT","url":"{{baseUrl}}/api/bookings/{{bookingId}}/customer-arrived"}}
+      ]
+    },
+    {
+      "name": "Reviews",
+      "item": [
+        {"name":"Create Review","request":{"method":"POST","url":"{{baseUrl}}/api/reviews"}},
+        {"name":"Get Shop Reviews","request":{"method":"GET","url":"{{baseUrl}}/api/reviews/shop/{{shopId}}"}},
+        {"name":"Get Review Details","request":{"method":"GET","url":"{{baseUrl}}/api/reviews/{{reviewId}}"}},
+        {"name":"Update Review","request":{"method":"PUT","url":"{{baseUrl}}/api/reviews/{{reviewId}}"}},
+        {"name":"Delete Review","request":{"method":"DELETE","url":"{{baseUrl}}/api/reviews/{{reviewId}}"}}
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {"name":"My Notifications","request":{"method":"GET","url":"{{baseUrl}}/api/notifications"}},
+        {"name":"Mark Notification Read","request":{"method":"PUT","url":"{{baseUrl}}/api/notifications/{{notificationId}}/read"}},
+        {"name":"Mark All Notifications Read","request":{"method":"PUT","url":"{{baseUrl}}/api/notifications/read-all"}},
+        {"name":"Delete Notification","request":{"method":"DELETE","url":"{{baseUrl}}/api/notifications/{{notificationId}}"}}
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {"name":"Create Payment","request":{"method":"POST","url":"{{baseUrl}}/api/payments"}},
+        {"name":"My Payments","request":{"method":"GET","url":"{{baseUrl}}/api/payments/my-payments"}},
+        {"name":"Get Payment Details","request":{"method":"GET","url":"{{baseUrl}}/api/payments/{{paymentId}}"}},
+        {"name":"Generate Invoice","request":{"method":"GET","url":"{{baseUrl}}/api/payments/{{paymentId}}/invoice"}},
+        {"name":"All Payments","request":{"method":"GET","url":"{{baseUrl}}/api/payments"}},
+        {"name":"Update Payment Status","request":{"method":"PUT","url":"{{baseUrl}}/api/payments/{{paymentId}}/status"}}
+      ]
+    },
+    {
+      "name": "Wallets",
+      "item": [
+        {"name":"Create Wallet","request":{"method":"POST","url":"{{baseUrl}}/api/wallets"}},
+        {"name":"My Wallet","request":{"method":"GET","url":"{{baseUrl}}/api/wallets/my-wallet"}},
+        {"name":"Admin Add Money","request":{"method":"POST","url":"{{baseUrl}}/api/wallets/add-money"}},
+        {"name":"My Wallet Transactions","request":{"method":"GET","url":"{{baseUrl}}/api/wallets/my-transactions"}},
+        {"name":"Get Wallet By User","request":{"method":"GET","url":"{{baseUrl}}/api/wallets/user/{{userId}}"}},
+        {"name":"Update Wallet Status","request":{"method":"PUT","url":"{{baseUrl}}/api/wallets/{{walletId}}/status"}},
+        {"name":"Deduct Money","request":{"method":"PUT","url":"{{baseUrl}}/api/wallets/{{walletId}}/deduct-money"}},
+        {"name":"All Wallet Transactions","request":{"method":"GET","url":"{{baseUrl}}/api/wallets/transactions/all"}}
+      ]
+    },
+    {
+      "name": "Commissions",
+      "item": [
+        {"name":"Commission By Booking","request":{"method":"GET","url":"{{baseUrl}}/api/commissions/booking/{{bookingId}}"}},
+        {"name":"My Commission History","request":{"method":"GET","url":"{{baseUrl}}/api/commissions/my-history"}},
+        {"name":"All Commission History","request":{"method":"GET","url":"{{baseUrl}}/api/commissions"}}
+      ]
+    },
+    {
+      "name": "Transfers",
+      "item": [
+        {"name":"My Transfers","request":{"method":"GET","url":"{{baseUrl}}/api/transfers/my-transfers"}},
+        {"name":"Get Transfer","request":{"method":"GET","url":"{{baseUrl}}/api/transfers/{{transferId}}"}},
+        {"name":"Send Transfer Payment","request":{"method":"PUT","url":"{{baseUrl}}/api/transfers/{{transferId}}/send"}},
+        {"name":"Update Transfer Status","request":{"method":"PUT","url":"{{baseUrl}}/api/transfers/{{transferId}}/status"}},
+        {"name":"All Transfers","request":{"method":"GET","url":"{{baseUrl}}/api/transfers"}},
+        {"name":"Shop Transfers","request":{"method":"GET","url":"{{baseUrl}}/api/transfers/shop/{{shopId}}"}}
+      ]
+    },
+    {
+      "name": "Financial History",
+      "item": [
+        {"name":"My Financial History","request":{"method":"GET","url":"{{baseUrl}}/api/financial-history/my-history"}},
+        {"name":"Financial History By User","request":{"method":"GET","url":"{{baseUrl}}/api/financial-history/user/{{userId}}"}},
+        {"name":"All Financial History","request":{"method":"GET","url":"{{baseUrl}}/api/financial-history"}},
+        {"name":"Transaction Details","request":{"method":"GET","url":"{{baseUrl}}/api/financial-history/{{transactionId}}"}}
+      ]
+    },
+    {
+      "name": "Payout Accounts",
+      "item": [
+        {"name":"Create Account","request":{"method":"POST","url":"{{baseUrl}}/api/accounts"}},
+        {"name":"My Accounts By User","request":{"method":"GET","url":"{{baseUrl}}/api/accounts/user/{{userId}}"}},
+        {"name":"Update Account","request":{"method":"PUT","url":"{{baseUrl}}/api/accounts/{{accountId}}"}},
+        {"name":"Deactivate Account","request":{"method":"PUT","url":"{{baseUrl}}/api/accounts/{{accountId}}/deactivate"}},
+        {"name":"All Accounts","request":{"method":"GET","url":"{{baseUrl}}/api/accounts"}},
+        {"name":"Get Account","request":{"method":"GET","url":"{{baseUrl}}/api/accounts/{{accountId}}"}}
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {"name":"Revenue Report","request":{"method":"GET","url":"{{baseUrl}}/api/reports/revenue"}},
+        {"name":"Booking Statistics","request":{"method":"GET","url":"{{baseUrl}}/api/reports/bookings"}},
+        {"name":"Top Shops","request":{"method":"GET","url":"{{baseUrl}}/api/reports/top-shops"}},
+        {"name":"User Growth","request":{"method":"GET","url":"{{baseUrl}}/api/reports/user-growth"}},
+        {"name":"Wallet Report","request":{"method":"GET","url":"{{baseUrl}}/api/reports/wallet"}},
+        {"name":"Commission Report","request":{"method":"GET","url":"{{baseUrl}}/api/reports/commission"}},
+        {"name":"Shop Earnings Report","request":{"method":"GET","url":"{{baseUrl}}/api/reports/shop-earnings"}},
+        {"name":"Transfer Report","request":{"method":"GET","url":"{{baseUrl}}/api/reports/transfers"}},
+        {"name":"Financial Report","request":{"method":"GET","url":"{{baseUrl}}/api/reports/financial"}}
+      ]
+    },
+    {
+      "name": "Audit Logs",
+      "item": [
+        {"name":"All Audit Logs","request":{"method":"GET","url":"{{baseUrl}}/api/audit-logs"}},
+        {"name":"Audit Log Details","request":{"method":"GET","url":"{{baseUrl}}/api/audit-logs/{{auditLogId}}"}}
+      ]
+    },
+    {
       "name": "404 handler",
       "request": {
         "auth": {
@@ -1283,8 +1419,8 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "GET http://localhost:5000/api/nonexistent",
-          "protocol": "GET http",
+          "raw": "{{baseUrl}}/api/nonexistent",
+          "protocol": "http",
           "host": [
             "localhost"
           ],
@@ -1299,56 +1435,86 @@
     }
   ],
   "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "resetToken", "value": "" },
+    { "key": "jwt", "value": "{{accessToken}}" },
+    { "key": "userId", "value": "" },
+    { "key": "shopId", "value": "" },
+    { "key": "serviceId", "value": "" },
+    { "key": "bookingId", "value": "" },
+    { "key": "paymentId", "value": "" },
+    { "key": "walletId", "value": "" },
+    { "key": "transferId", "value": "" },
+    { "key": "accountId", "value": "" },
+    { "key": "reviewId", "value": "" },
+    { "key": "notificationId", "value": "" },
+    { "key": "transactionId", "value": "" },
+    { "key": "auditLogId", "value": "" },
     {
       "key": "supabase_service_role_api_key_0ix7",
+      "value": "{{accessToken}}",
       "secret": true
     },
     {
       "key": "auth_secret_0ix7",
+      "value": "{{accessToken}}",
       "secret": true
     },
     {
       "key": "supabase_service_role_api_key_0r1a",
+      "value": "{{accessToken}}",
       "secret": true
     },
     {
       "key": "auth_secret_0e2m",
+      "value": "{{accessToken}}",
       "secret": true
     },
     {
       "key": "supabase_service_role_api_key_1cpe",
+      "value": "{{accessToken}}",
       "secret": true
     },
     {
       "key": "json_web_token_03py",
+      "value": "{{refreshToken}}",
       "secret": true
     },
     {
       "key": "json_web_token_07qx",
+      "value": "{{resetToken}}",
       "secret": true
     },
     {
       "key": "auth_secret_0hfa",
+      "value": "{{accessToken}}",
       "secret": true
     },
     {
       "key": "auth_secret_0mdb",
+      "value": "{{accessToken}}",
       "secret": true
     },
     {
       "key": "supabase_service_role_api_key_0mdb",
+      "value": "{{accessToken}}",
       "secret": true
     },
     {
       "key": "json_web_token_0mdb",
+      "value": "{{accessToken}}",
       "secret": true
     },
     {
       "key": "json_web_token_05jm",
+      "value": "{{accessToken}}",
       "secret": true
     },
     {
       "key": "supabase_service_role_api_key_05jm",
+      "value": "{{accessToken}}",
       "secret": true
     }
   ]
