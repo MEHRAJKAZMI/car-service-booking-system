@@ -208,6 +208,117 @@ or on error:
 
 **Register Shop file fields** (multipart/form-data): `ownerCnic`, `shopLogo`, `businessRegistrationCertificate` (optional). Accepted types: jpeg, jpg, png, pdf. Max size: 5MB per file.
 
+### Shop Embedded Services (`/api/shops/:id/services`) - requires `Shop Management` or `ALL`
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/:id/services` | Add service to a shop |
+| PUT | `/:id/services/:serviceId` | Update a shop service |
+| DELETE | `/:id/services/:serviceId` | Remove a service from a shop |
+
+### Wallets & Balances (`/api/wallets`)
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| POST | `/` | Yes (Customer) | Create customer wallet |
+| GET | `/my-wallet` | Yes (Customer) | Get current wallet balance |
+| POST | `/add-money` | `Wallet Management` or `ALL` | Direct wallet credit |
+| GET | `/my-transactions` | Yes (Customer) | Customer's wallet transaction ledger |
+| GET | `/user/:userId` | `Wallet Management` or `ALL` | View user's wallet balance |
+| PUT | `/:id/status` | `Wallet Management` or `ALL` | Freeze or activate a wallet |
+| PUT | `/:id/deduct-money` | `Wallet Management` or `ALL` | Direct wallet debit/penalty |
+| GET | `/transactions/all` | `Wallet Management` or `ALL` | System-wide wallet transaction ledger |
+
+### Bookings (`/api/bookings`)
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| POST | `/` | Yes (Customer) | Create a booking (shop visit or roadside) |
+| GET | `/my-bookings` | Yes (Customer) | Get customer's booking history |
+| GET | `/:id` | Yes (Owner/Customer) | Get booking details |
+| PUT | `/:id/cancel` | Yes (Customer) | Cancel customer's own booking |
+| GET | `/` | `Shop Management` or `ALL` | Get all platform bookings |
+| PUT | `/:id/status` | `Shop Management` or `ALL` | Update booking status (`confirmed`, `in_progress`, `completed`, `cancelled`) |
+| PUT | `/:id/customer-arrived` | `Shop Management` or `ALL` | Record customer arrival timestamp at shop |
+
+### Payments & Settlement (`/api/payments`)
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| POST | `/` | Yes (Customer) | Create booking payment or wallet recharge payment |
+| GET | `/my-payments` | Yes (Customer) | Get customer payments |
+| GET | `/:id` | Yes (Owner/Customer/Manager) | Get payment details |
+| GET | `/:id/invoice` | Yes (Owner/Customer/Manager) | Generate invoice breakdown |
+| GET | `/` | `Shop Management` or `ALL` | Get all platform payments |
+| PUT | `/:id/status` | `Shop Management` or `ALL` | Settle payment as `paid` or `refunded` (triggers atomic split & ledger) |
+
+### Commissions (`/api/commissions`)
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| GET | `/booking/:bookingId` | `Shop Management` or `ALL` | View commission calculated for a booking |
+| GET | `/my-history` | Yes (Shop Owner) | Shop owner's commission history |
+| GET | `/` | `Wallet Management` or `ALL` | System-wide commission revenue ledger |
+
+### Transfers & Payouts (`/api/transfers`)
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| GET | `/my-transfers` | Yes (Shop Owner) | View shop payout transfer history |
+| GET | `/:id` | `Wallet Management` or `ALL` | View transfer details |
+| PUT | `/:id/send` | `Wallet Management` or `ALL` | Dispatch payout to shop (marks completed) |
+| PUT | `/:id/status` | `Wallet Management` or `ALL` | Update transfer status (`processing`, `failed`, etc.) |
+| GET | `/` | `Wallet Management` or `ALL` | Get all platform payout transfers |
+| GET | `/shop/:shopId` | `Wallet Management` or `ALL` | Get transfers for a specific shop |
+
+### Financial History (Ledger) (`/api/financial-history`)
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| GET | `/my-history` | Yes (Customer) | View own financial transactions |
+| GET | `/user/:userId` | `Wallet Management` or `ALL` | View user's financial transactions |
+| GET | `/` | `Wallet Management` or `ALL` | View complete ledger of all financial transactions |
+| GET | `/:id` | `Wallet Management` or `ALL` | View single transaction details |
+
+### Payout Accounts (`/api/accounts`)
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| POST | `/` | Yes (Shop Owner) | Add bank or mobile wallet payout destination |
+| GET | `/user/:userId` | Yes (Owner/Manager) | Get user's payout accounts |
+| GET | `/:id` | `Wallet Management` or `ALL` | Get payout account details |
+| PUT | `/:id` | Yes (Owner/Manager) | Update payout account |
+| PUT | `/:id/deactivate` | Yes (Owner/Manager) | Deactivate payout account |
+| GET | `/` | `Wallet Management` or `ALL` | Get all system payout accounts |
+
+### Reviews (`/api/reviews`)
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| POST | `/` | Yes (Customer) | Review a completed booking (1-5 stars) |
+| GET | `/shop/:shopId` | Yes | Get all reviews and average rating for a shop |
+| GET | `/:id` | Yes | Get review details |
+| PUT | `/:id` | Yes (Owner) | Update review |
+| DELETE | `/:id` | Yes (Owner) | Delete review |
+
+### Notifications (`/api/notifications`)
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| GET | `/` | Yes | Get notifications & unread count |
+| PUT | `/:id/read` | Yes | Mark single notification as read |
+| PUT | `/read-all` | Yes | Mark all notifications as read |
+| DELETE | `/:id` | Yes | Delete notification |
+
+### Reports & Analytics (`/api/reports`)
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| GET | `/revenue` | `Reports` or `ALL` | Total revenue, penalties, net commission, shop payouts |
+| GET | `/bookings` | `Reports` or `ALL` | Bookings breakdown by status |
+| GET | `/top-shops` | `Reports` or `ALL` | Top 5 shops by completed bookings |
+| GET | `/user-growth` | `Reports` or `ALL` | User registration growth statistics |
+| GET | `/wallet` | `Wallet Management` or `ALL` | Customer wallet liabilities & platform balance |
+| GET | `/commission` | `Wallet Management` or `ALL` | Total commission revenue and average rate |
+| GET | `/shop-earnings` | `Wallet Management` or `ALL` | Shop net earnings leaderboard |
+| GET | `/transfers` | `Wallet Management` or `ALL` | Payout transfers counts and totals by status |
+| GET | `/financial` | `Wallet Management` or `ALL` | Executive financial summary |
+
+### Audit Logs (`/api/audit-logs`) - requires `Audit Log` or `ALL`
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/` | Query audit trail (supports `performedBy`, `module`, `startDate`, `endDate`) |
+| GET | `/:id` | Get audit log details |
+
 ## Postman Collection
 
 A full Postman collection covering every endpoint above is included in this repository (`Car Service API.postman_collection.json`). Import it into Postman and set the collection-level Authorization to Bearer Token using `{{accessToken}}` after logging in.
